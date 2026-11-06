@@ -246,6 +246,18 @@ h3{font-size:15px;line-height:1.5}
 .savebox textarea{width:100%;box-sizing:border-box;min-height:92px;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);font-family:var(--mono);font-size:11px;line-height:1.6;color:var(--ink-2);resize:vertical}
 .iomsg{font-size:12px;line-height:1.7;color:#4a5f3a;margin:10px 0 0}
 .iomsg.bad{color:var(--blood)}
+
+/* 随身战利品 */
+.lootbar{display:flex;align-items:center;gap:10px;padding:9px 14px;margin-bottom:14px;font-size:12px;color:#4a5f3a;
+  background:#f1f6ec;border:1px solid #d4e0c6;border-left:3px solid #6d8a52;border-radius:6px;flex-wrap:wrap}
+.lootbar .lname{font-weight:500;letter-spacing:.04em}
+.lootbar .litems{flex:1;min-width:80px;line-height:1.6}
+.lootbar .lrisk{font-size:11px;color:#8a9a78;letter-spacing:.02em}
+.fx.lost{text-decoration:line-through;opacity:.55}
+@media (max-width:640px){
+  .lootbar{padding:8px 12px;font-size:11.5px;gap:7px}
+  .lootbar .lrisk{font-size:10.5px}
+}
 </style>
 </head>
 <body>
@@ -3540,7 +3552,33 @@ function statbar(){
     <div class="stat ${G.supply<=1?'low':''}"><div class="k">补给</div><div class="v">${G.supply} / ${G.supplyMax}</div><div class="bar sp"><i style="width:${pct(G.supply,G.supplyMax)}%"></i></div></div>
     <div class="stat"><div class="k">决心</div><div class="v">${G.resolve} / ${G.resolveMax}</div><div class="bar rs"><i style="width:${pct(G.resolve,G.resolveMax)}%"></i></div></div>
     <div class="stat" style="flex:1"><div class="k">${esc(G.hero.name)} · ${esc(G.hero.trait)}</div><div class="attrs">${attrs}</div></div>
-  </div>` + shadowBar();
+  </div>` + shadowBar() + lootBar();
+}
+
+/* 按品质抽一件装备：普通常见，传世稀有。消耗品不参与 */
+function rollLootItem(rnd){
+  const pool = Object.keys(ITEMS).filter(k => ITEMS[k].slot !== 'consume');
+  const w = { 0:5, 1:3, 2:1.5, 3:0.6 };
+  const total = pool.reduce((s,k) => s + (w[ITEMS[k].q] || 1), 0);
+  let r = rnd() * total;
+  for(const k of pool){
+    r -= (w[ITEMS[k].q] || 1);
+    if(r <= 0) return k;
+  }
+  return pool[pool.length - 1];
+}
+
+/* 随身战利品：局内一直可见。带不回去的东西，得先让人看见它在身上 */
+function lootBar(){
+  if(!G || !G.loot || !G.loot.length) return '';
+  const names = G.loot.map(l => ITEMS[l.id] ? ITEMS[l.id].name + (l.plus ? ' +' + l.plus : '') : l.id);
+  const shown = names.slice(0, 3).join(' · ');
+  const more = names.length > 3 ? ' 等 ' + names.length + ' 件' : '';
+  return `<div class="lootbar">
+    <span class="lname">随身</span>
+    <span class="litems">${esc(shown)}${esc(more)}</span>
+    <span class="lrisk">倒下即失去</span>
+  </div>`;
 }
 
 function startText(){
@@ -4099,6 +4137,15 @@ function enterNode(id){
   }
   if(node.type === 'treasure'){
     G.materials += (G.rules && G.rules.extraLoot ? 2 : 1);
+    /* 秘藏本来就该翻出东西：按品质抽一件装备，用 seed 派生，可复现 */
+    const lrnd = mulberry32(hashStr(G.seed + '|loot|' + node.id));
+    if(lrnd() < 0.65 && G.loot.length < 5){
+      const lid = rollLootItem(lrnd);
+      if(lid && ITEMS[lid]){
+        G.loot.push({ id: lid, plus: 0 });
+        addLog('秘藏：' + ITEMS[lid].name);
+      }
+    }
   }
   if(node.type === 'start'){
     G.screen = 'event';
@@ -4179,7 +4226,7 @@ function renderEvent(){
       <div class="kicker">${ev.kicker || kickerFor(ev)}</div>
       <h2>${esc(ev.title)}</h2>
       <div class="prose">${String(ev.text).split('\n').filter(x=>x.trim()).map(p=>`<p>${esc(p)}</p>`).join('')}</div>
-      ${(G.tokens||[]).length ? `<div class="tokenbar">随身 · ${G.tokens.map(t=>esc(t.name)).join(' · ')}</div>` : ''}
+      ${(G.tokens||[]).length ? `<div class="tokenbar">带着 · ${G.tokens.map(t=>esc(t.name)).join(' · ')}</div>` : ''}
       ${fxHtml}
       ${ev.costInfo ? `<div class="costbox"><div class="ck">代价</div><div class="ct">${esc(ev.costInfo.text)}</div></div>` : ''}
       <div class="opts">${opts}</div>
@@ -4410,7 +4457,9 @@ function endRun(kind){
     kept = []; mats = 0;
   } else {
     renown = Math.floor(renown * 0.3);
-    kept = []; mats = 0;
+    /* 倒下：手里最后攥着的那一件能留下，其余的留在荒野里 */
+    kept = G.loot.length ? [G.loot[G.loot.length - 1]] : [];
+    mats = 0;
   }
 
   /* 入库 */
@@ -4432,7 +4481,11 @@ function endRun(kind){
   if(renown > META.best) META.best = renown;
   saveMeta(META);
 
-  G.over = { kind, reached, renown, mats, kept, added };
+  /* 倒下或堕入阴影时，把"本来能带回去的东西"记下来，结算页要让人看见 */
+  const lost = (kind === 'dead' || kind === 'shadow')
+    ? G.loot.slice(0, Math.max(0, G.loot.length - kept.length))
+    : [];
+  G.over = { kind, reached, renown, mats, kept, added, lost };
   G.screen = 'result';
   clearRun();
   render();
@@ -4454,6 +4507,14 @@ function renderResult(){
       }).join('')
     : '<span class="fx bad">什么也没带回来</span>';
 
+  const lostHtml = o.lost && o.lost.length
+    ? `<p class="note" style="margin-top:14px;margin-bottom:6px">留在了荒野里：</p>
+       <div class="fxlist">${o.lost.map(l=>{
+         const it = ITEMS[l.id];
+         return `<span class="fx lost">${it?esc(it.name):l.id}${l.plus?' +'+l.plus:''}</span>`;
+       }).join('')}</div>`
+    : '';
+
   app.innerHTML = topbar() + `
     <div class="card pad" style="text-align:center;padding-top:32px">
       <div style="font-size:11px;letter-spacing:.18em;color:var(--gold);margin-bottom:9px">远征结束</div>
@@ -4471,7 +4532,12 @@ function renderResult(){
     <div class="card pad" style="margin-top:14px">
       <h3>战利品</h3>
       <div class="fxlist" style="margin-top:9px">${keptHtml}</div>
-      <p class="note">${o.kind==='dead' ? '倒下时，身上的一切都留在了荒野里。' : '活着带回来的东西已经存入军械库。'}${o.added ? ' 新藏品 ' + o.added + ' 件。' : ''}</p>
+      ${lostHtml}
+      <p class="note">${o.kind==='dead'
+        ? (o.kept && o.kept.length
+            ? '倒下时，你手里还攥着一样东西。其余的留在了荒野里。'
+            : '倒下时，身上的一切都留在了荒野里。')
+        : '活着带回来的东西已经存入军械库。'}${o.added ? ' 新藏品 ' + o.added + ' 件。' : ''}</p>
     </div>
 
     ${o.kind==='win' && G.tierId < TIERS.length ? `<p class="note" style="text-align:center;color:var(--gold)">难度 ${G.tierId+1} 已解锁。</p>` : ''}
@@ -4528,7 +4594,18 @@ function clearRun(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
 
   if(seed && hero && HEROES.some(h=>h.id===hero)){
     newGame(hero, tier?+tier:1, seed);
+    /* 调试：给几件随身战利品，用来预览确认 */
+    if(q.get('loot')){
+      G.loot = [{id:'sword',plus:1},{id:'mail',plus:0},{id:'ring',plus:2},{id:'cloak',plus:0}];
+    }
     if(want === 'map'){ G.screen = 'map'; render(); }
+    /* 调试：直接看结算页（dead / win / retreat / shadow） */
+    if(want === 'result'){
+      G.loot = [{id:'sword',plus:1},{id:'mail',plus:0},{id:'ring',plus:2}];
+      G.layer = 7;
+      if(q.get('kind') === 'dead') G.hp = 0;
+      endRun(q.get('kind') || 'dead');
+    }
     if(want === 'ev'){
       const wantId = q.get('ev');
       const ev = EVENTS.find(e=>e.id===wantId);
@@ -4556,7 +4633,6 @@ function clearRun(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
         if(ev){ injectShadowOptions(ev); G.event = ev; G.screen = 'event'; render(); }
       }
     }
-    if(want === 'result'){ G.hp = 8; G.layer = 9; G.renown = 14; G.materials = 6; G.loot = [{id:'sword',plus:1},{id:'cloak',plus:0}]; endRun('win'); }
   } else {
     renderTitle();
   }
