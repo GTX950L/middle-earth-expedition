@@ -172,4 +172,4 @@ v0.2，能完整玩通。
 
 ## 许可
 
-代码与文本以 [CC BY-NC-SA 4.0](LICENSE) 发布。
+代码与文本以 [CC BY-NC-SA 4.0](LICENSE) 发布。中文摘要与题材说明见 [NOTICE.md](NOTICE.md)。
