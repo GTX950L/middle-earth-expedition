@@ -291,6 +291,16 @@ h3{font-size:15px;line-height:1.5}
 @media (max-width:640px){
   .threadbar{padding:8px 12px;font-size:11.5px;gap:7px}
 }
+/* 同行者 */
+.compbar{display:flex;align-items:center;gap:10px;padding:9px 14px;margin-bottom:14px;font-size:12px;color:#3f5468;
+  background:#eef3f7;border:1px solid #cbd9e4;border-left:3px solid #3d5a7a;border-radius:6px;flex-wrap:wrap}
+.compbar .ck{font-size:10.5px;letter-spacing:.14em;color:#3d5a7a}
+.compbar .cn{font-weight:500}
+.compbar .ct{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:#5a7085}
+.compbar .cd{flex-basis:100%;font-size:11px;color:#708599}
+@media (max-width:640px){
+  .compbar{padding:8px 12px;font-size:11.5px;gap:7px}
+}
 .fx.lost{text-decoration:line-through;opacity:.55}
 @media (max-width:640px){
   .lootbar{padding:8px 12px;font-size:11.5px;gap:7px}
@@ -304,7 +314,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.7
+   中土远征 v0.8
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -590,6 +600,60 @@ function makeThread(seed){
   const rnd = mulberry32(hashStr(seed + '|thread'));
   const def = THREADS[Math.floor(rnd() * THREADS.length)];
   return { id:def.id, step:0, pushes:0, done:false, dropped:false, firstLayer:0 };
+}
+
+/* 同行者：第 3 程火边遇上的一个人。带上之后每两个事件能让他搭一次手，
+   给一样当前最缺的东西；用两次他就走了。他不掷骰，也不替你决定。
+   相遇只有一次，pass 之后这一局不会再遇到别人。 */
+const COMPANION_AT = 3;
+const COMPANIONS = [
+  { id:'hunter', name:'猎户',
+    meet:'火边坐着一个人，膝上横着一张弓，弦松着。他说他往东，问你是不是也往东。\n\n他没说自己叫什么。你也没问。',
+    join:'他站起来，把弓背到肩上，没有多问。走出几步，他回头把火踩灭了。',
+    pass:'你继续走。回头时他还在火边，没有看你。',
+    line:'他认得哪条路能少走半天。',
+    use:'他拐进一条你没看见的小路，回来时手里多了一点东西。',
+    fx:{ supply:2 },
+    echoStay:'猎户一直跟着你走到这里。他走在后面，脚步很轻。',
+    echoLeft:'猎户在第 {n} 程离开了。他说他该往北去。',
+    echoIdle:'猎户跟了你一路，一次也没用上他的弓。' },
+  { id:'trader', name:'行商',
+    meet:'路边歇着一个背箱子的人，箱子比他人还宽。他说他不介意多一个同路的，路上也好有人说句话。',
+    join:'他把箱子换了个肩，站起来的时候晃了一下。',
+    pass:'你从他身边走过去。他在后面问你真不往东？你没有回头。',
+    line:'他箱子里总有些别人正缺的东西。',
+    use:'他从箱子里翻出一点东西塞给你，说到了东边再算。',
+    fx:{ material:2 },
+    echoStay:'行商跟你走到这里，箱子还在肩上。他一次也没提过账。',
+    echoLeft:'行商在第 {n} 程离开了。他说再往东就没有人买东西了。',
+    echoIdle:'行商跟了你一路，箱子没打开过。' },
+  { id:'child', name:'孩子',
+    meet:'一个半大孩子跟了你一段，你停下来他也停下来。他说他认得路，也认得字。\n\n他说他不是一个人。',
+    join:'他跟在你侧后半步，走得很稳。',
+    pass:'你让他回去。他站了一会儿，转身往回走了。',
+    line:'他认得别人写在墙上的字。',
+    use:'他把一段你看不懂的字念了出来，念完问你对不对。',
+    fx:{ resolve:2 },
+    echoStay:'那个孩子跟你走到这里。他一次也没有喊累。',
+    echoLeft:'孩子在第 {n} 程离开了。他说他该回家了。',
+    echoIdle:'孩子跟了你一路，认得字，但没派上用场。' },
+  { id:'soldier', name:'老兵',
+    meet:'界石上坐着一个老兵，盔甲只剩半边。他问你往东走不走，说他不认路，但能挡一下。',
+    join:'他站起来，把剩下的半边甲整了整，走在你外侧。',
+    pass:'你说不用。他点点头，又坐回去。',
+    line:'他挡过的东西比你多。',
+    use:'他往你前面半步，什么都没说。那一下没有落到你身上。',
+    fx:{ hp:2 },
+    echoStay:'老兵跟你走到这里。他走在你的外侧，一直是这样。',
+    echoLeft:'老兵在第 {n} 程离开了。他说他的路到头了。',
+    echoIdle:'老兵跟了你一路。他走在你的外侧，但没有东西扑上来。' }
+];
+function pickCompanion(seed){
+  const rnd = mulberry32(hashStr(seed + '|companion'));
+  return COMPANIONS[Math.floor(rnd() * COMPANIONS.length)];
+}
+function companionDef(){
+  return (G && G.companion) ? COMPANIONS.find(c => c.id === G.companion.id) : null;
 }
 
 const ROUTE = ['shire','bree','wild'];
@@ -4128,6 +4192,7 @@ function newGame(heroId, tierId, seed){
     items:[], loot:[], flags:{}, seen:{}, chain:null, echoes:[],
     shadow:0, vow:null, vowLayer:0, costsTaken:[], tokens:[], groupCount:{},
     thread: makeThread(seed),
+    companion:null, companionMet:false, companionLeft:null,
     map, at:map.layers[0][0].id, layer:0,
     screen:'map', event:null, pending:null, log:[],
     walkedList:[], rerolls:0, perLayerLore:false, wardenUsed:false,
@@ -4399,6 +4464,28 @@ function noteTaken(view){
 
 /* 通晓：每三个事件多一条「观察」选项。
    不给检定、不改题目、不碰数值结构，只多一个能点的看法。 */
+/* 同行者搭手：每两个事件才给一次机会，不把每条路都变成白送的。
+   私事与相遇本身不注入 —— 那些时刻该由玩家自己决定。 */
+function injectCompanionOption(ev){
+  if(!G || !G.companion || G.companion.trust <= 0) return ev;
+  if(!ev || !ev.options) return ev;
+  if(ev.threadStep != null || ev.companionMeet) return ev;
+  if(String(ev.id).indexOf('__') === 0 || String(ev.id).indexOf('r_L') === 0) return ev;
+  if(ev.options.some(o => o.companionOpt)) return ev;
+  if(!G.eventCount || G.eventCount % 2 !== 0) return ev;
+  const def = companionDef();
+  if(!def) return ev;
+  return Object.assign({}, ev, {
+    options: ev.options.concat([{
+      label:'让' + def.name + '来',
+      companionOpt:true,
+      auto:true,
+      fx:Object.assign({}, def.fx),
+      ok:{ text:def.use }
+    }])
+  });
+}
+
 function injectObserveOption(ev){
   if(!G || !ev || !ev.options) return ev;
   if(!(G.rules && G.rules.extraOption)) return ev;
@@ -4509,6 +4596,31 @@ function threadEvent(node){
     text:txt,
     options:st.opts.map(o=>Object.assign({}, o, { ok:Object.assign({}, o.ok) })),
     threadStep:th.step
+  };
+}
+
+/* 同行者相遇：整局只可能有一次，第 3 程起在非秘藏节点触发。
+   带上或各走各的，两条路都直接给结果，不掷骰。 */
+function companionEvent(node){
+  if(!G || G.companionMet || G.companion) return null;
+  if(node.type === 'start' || node.type === 'final' || node.type === 'treasure') return null;
+  if(node.layer < COMPANION_AT) return null;
+  const def = pickCompanion(G.seed);
+  let txt = def.meet;
+  if(G.shadow >= SHADOW_TEXT_AT) txt += '\n\n你看了他一会儿，才想起人本来是会说话的。';
+  return {
+    id:'companion_meet',
+    region:node.region,
+    type:'story',
+    kicker:'同行',
+    title:'火边的人',
+    text:txt,
+    companionId:def.id,
+    companionMeet:true,
+    options:[
+      { label:'让他跟着', companion:'join', fx:{resolve:1}, ok:{ text:def.join } },
+      { label:'各走各的', companion:'pass', fx:{supply:1}, ok:{ text:def.pass } }
+    ]
   };
 }
 
@@ -4766,7 +4878,21 @@ function statbar(){
     <div class="stat ${G.supply<=1?'low':''}"><div class="k">补给</div><div class="v">${G.supply} / ${G.supplyMax}</div><div class="bar sp"><i style="width:${pct(G.supply,G.supplyMax)}%"></i></div></div>
     <div class="stat"><div class="k">决心</div><div class="v">${G.resolve} / ${G.resolveMax}</div><div class="bar rs"><i style="width:${pct(G.resolve,G.resolveMax)}%"></i></div></div>
     <div class="stat" style="flex:1"><div class="k">${esc(G.hero.name)} · ${esc(G.hero.trait)}</div><div class="attrs">${attrs}</div></div>
-  </div>` + shadowBar() + lootBar() + threadBar();
+  </div>` + shadowBar() + lootBar() + threadBar() + companionBar();
+}
+
+/* 同行者：名字、还剩几次、他能做什么。信任画成两格，用掉一格就少一格 */
+function companionBar(){
+  if(!G || !G.companion || G.over) return '';
+  const def = companionDef();
+  if(!def) return '';
+  const t = Math.max(0, Math.min(2, G.companion.trust));
+  return `<div class="compbar">
+    <span class="ck">同行</span>
+    <span class="cn">${esc(def.name)}</span>
+    <span class="ct">${'●'.repeat(t)}${'○'.repeat(2 - t)}</span>
+    <span class="cd">${esc(def.line)}</span>
+  </div>`;
 }
 
 /* 按品质抽一件装备：普通常见，传世稀有。消耗品不参与 */
@@ -4872,7 +4998,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.7</div>
+    <div class="eyebrow">文字跑团 · v0.8</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十二程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -5494,7 +5620,7 @@ function enterNode(id){
     G.pending = null; render(); return;
   }
 
-  const ev = threadEvent(node) || pickEvent(node);
+  const ev = threadEvent(node) || companionEvent(node) || pickEvent(node);
   if(!ev){
     G.screen = 'event';
     G.event = { id:'__empty', kicker:'途中', title:'一路无事', text:'这一段路走得平静。没有遇到什么，也没有失去什么。',
@@ -5513,6 +5639,7 @@ function enterNode(id){
   view = injectShadowOptions(view);
   view = noteTaken(takeGentleOptions(view));
   view = injectObserveOption(view);
+  view = injectCompanionOption(view);
   G.screen = 'event';
   G.event = shadowVariant(view);
   G.pending = null;
@@ -5632,6 +5759,35 @@ function chooseOption(o){
       addLog('你把那件事放下了。');
       pushEcho({ t:'thread', key:G.thread.id, step:-1,
                  label:o.label, title:G.event.title });
+    }
+  }
+  /* 同行者：相遇时的带不带上，以及之后每一次「让他来」。
+     信任用一次少一格，用完他就走；走了不能再叫回来。 */
+  if(o.companion === 'join' || o.companion === 'pass'){
+    const cdef = COMPANIONS.find(c => c.id === ((G.event && G.event.companionId) || ''));
+    G.companionMet = true;
+    if(cdef){
+      if(o.companion === 'join'){
+        G.companion = { id:cdef.id, trust:2, used:0, firstLayer:G.layer + 1 };
+        addLog('同行 · ' + cdef.name);
+        pushEcho({ t:'companion', kind:'join', name:cdef.name });
+      } else {
+        addLog('同行 · 各走各的');
+        pushEcho({ t:'companion', kind:'pass', name:cdef.name });
+      }
+    }
+  }
+  if(o.companionOpt && G.companion && G.companion.trust > 0){
+    const cdef = companionDef();
+    G.companion.trust--;
+    G.companion.used++;
+    addLog('同行 · ' + (cdef ? cdef.name : '他') + '搭了一手');
+    pushEcho({ t:'companion', kind:'use', name:cdef ? cdef.name : '' });
+    if(G.companion.trust <= 0 && cdef){
+      G.companionLeft = { id:cdef.id, name:cdef.name, layer:G.layer + 1 };
+      addLog(cdef.name + '走了。');
+      pushEcho({ t:'companion', kind:'left', name:cdef.name });
+      G.companion = null;
     }
   }
   if(o.consume === 'token' && o.need && o.need.token){
@@ -5855,6 +6011,18 @@ function buildEcho(kind, reached){
   const taken = first('taken'), cost = first('cost'), reroll = first('reroll');
   const steady = first('steady'), resist = first('resist'), secured = first('secure');
   const th = G && G.thread, thDef = (typeof threadDef === 'function') ? threadDef() : null;
+  /* 同行者与私事分开算：他的落点句也要进回响，但不能盖过这一局真正的大事 */
+  let compEcho = '', compLayer = 3;
+  if(G && G.companion){
+    const cd = COMPANIONS.find(c => c.id === G.companion.id);
+    if(cd){
+      compEcho = G.companion.used > 0 ? cd.echoStay : cd.echoIdle;
+      compLayer = G.companion.firstLayer || 3;
+    }
+  } else if(G && G.companionLeft){
+    const cd = COMPANIONS.find(c => c.id === G.companionLeft.id);
+    if(cd){ compEcho = cd.echoLeft.replace('{n}', G.companionLeft.layer); compLayer = G.companionLeft.layer; }
+  }
   const gotToken = of('token').filter(e => e.kind === 'got')[0];
   const usedToken = of('token').filter(e => e.kind === 'used')[0];
   const paras = [];
@@ -5908,6 +6076,7 @@ function buildEcho(kind, reached){
       : '';
     add('thread', w, { layer: th.firstLayer || 1 }, lead + s);
   }
+  if(compEcho) add('companion', 6, { layer: compLayer }, compEcho);
   if(resist) add('resist', 9, resist, '到顶上那一次，你把名字又说了一遍。');
   if(steady) add('steady', 8, steady,
     '第 ' + steady.layer + ' 程你停下来，把出发时别人叫你的名字念了一遍。');
@@ -6031,6 +6200,22 @@ function endRun(kind){
     none:''
   })[threadState] : '';
 
+  /* 同行者：还在、走了、一次没用上，三种落点。
+     陪到最后且还有信任，多给 4 点声望 —— 他愿意再跟你走一段。 */
+  let compState = 'none', compLine = '', compBonus = 0;
+  if(G.companion){
+    const cd = COMPANIONS.find(c => c.id === G.companion.id);
+    if(cd){
+      compState = G.companion.used > 0 ? 'stay' : 'idle';
+      compLine = compState === 'stay' ? cd.echoStay : cd.echoIdle;
+      if(kind !== 'shadow' && G.companion.trust > 0){ compBonus = 4; renown += compBonus; }
+    }
+  } else if(G.companionLeft){
+    compState = 'left';
+    const cd = COMPANIONS.find(c => c.id === G.companionLeft.id);
+    if(cd) compLine = cd.echoLeft.replace('{n}', G.companionLeft.layer);
+  }
+
   if(G.hero.rule === 'nameless') renown = Math.round(renown * 1.4);
   META.renown += renown;
   META.materials += mats;
@@ -6049,6 +6234,7 @@ function endRun(kind){
   G.over = { kind, reached, renown, mats, kept, added, upgraded, melted, meltMats,
              armoryTotal: Object.keys(META.armory).length,
              threadState, threadBonus, threadMats, threadLine,
+             compState, compLine, compBonus,
              lost, echo: buildEcho(kind, reached) };
   G.screen = 'result';
   clearRun();
@@ -6129,6 +6315,7 @@ function renderResult(){
                 : '身上的一切都留在了荒野里。')
             : '带回来的东西已经存入军械库。'}${haulTxt}</p>
       ${o.threadLine ? `<p class="note" style="margin-top:12px;color:var(--gold)">${esc(o.threadLine)}</p>` : ''}
+      ${o.compLine ? `<p class="note" style="margin-top:8px;color:#3d5a7a">${esc(o.compLine)}</p>` : ''}
     </div>
 
     ${o.kind==='win' && G.tierId < TIERS.length ? `<p class="note" style="text-align:center;color:var(--gold)">难度 ${G.tierId+1} 已解锁。</p>` : ''}
@@ -6171,6 +6358,10 @@ function loadRun(){
     if(!Array.isArray(d.loot)) d.loot = [];
     /* v0.7：旧档没有缘由，保持 null —— 不凭空给进行中的局塞一条线 */
     if(d.thread === undefined) d.thread = null;
+    /* v0.8：旧档没有同行者，按「这一局还没遇上」处理 */
+    if(d.companion === undefined) d.companion = null;
+    if(d.companionMet !== true) d.companionMet = false;
+    if(d.companionLeft === undefined) d.companionLeft = null;
     if(d.pending && !Number.isFinite(d.pending.checkBonus)){
       d.pending.checkBonus = Number.isFinite(d.pending.riderBonus) ? d.pending.riderBonus : 0;
     }

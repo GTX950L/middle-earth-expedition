@@ -3,7 +3,7 @@
    用法：node tests/sim.js
    零依赖。把 index.html 里的 <script> 抽出来放进 mock DOM 里跑：
    1) 数据完整性  2) 阴影机制  3) 规则接线  4) 刷新恢复  5) 可复现性  6) 300 局模拟
-   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 装备带回  11) 私事主线  12) 产物。
+   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 装备带回  11) 私事主线  12) 同行者  13) 产物。
    不启动浏览器，不写网络，不改仓库文件。
    平衡曲线（各难度通关率是否单调）另见 tests/diag.js。 */
 
@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.7，能完整玩通。', '版本号']
+    ['v0.8，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -519,6 +519,9 @@ section('④ 刷新恢复');
   delete parsed.shadowResistUsed;
   delete parsed.secLeft;                        // 模拟 v0.5 及以前：没有「收好」次数
   delete parsed.thread;                         // 模拟 v0.6 及以前：没有私事主线
+  delete parsed.companion;                      // 模拟 v0.7 及以前：没有同行者
+  delete parsed.companionMet;
+  delete parsed.companionLeft;
   const c2 = makeCtx({ me_run_v2: JSON.stringify(parsed) });
   const G2 = vm.runInContext('G', c2);
   if (!G2 || G2.screen === 'title') fail('刷新后没有接上未结束的一局');
@@ -526,7 +529,8 @@ section('④ 刷新恢复');
   else if (G2.steadyLeft !== 2 || G2.shadowResistUsed !== false) fail('旧存档没有补齐 v0.5 的阴影对抗字段');
   else if (G2.secLeft !== 2 || !Array.isArray(G2.loot)) fail('旧存档没有补齐 v0.6 的 secLeft / loot');
   else if (G2.thread !== null) fail('旧存档没有把 thread 补成 null');
-  else ok('刷新恢复到 ' + G2.screen + '；旧档 echoes / steadyLeft / shadowResistUsed / secLeft / thread 均已补齐');
+  else if (G2.companion !== null || G2.companionMet !== false || G2.companionLeft !== null) fail('旧存档没有补齐 v0.8 的同行者字段');
+  else ok('刷新恢复到 ' + G2.screen + '；旧档 echoes / steadyLeft / shadowResistUsed / secLeft / thread / companion 均已补齐');
 }
 
 /* ---------- 5/6. 自动模拟 ---------- */
@@ -678,6 +682,7 @@ section('⑥ 300 局自动模拟');
   ok('阴影到顶触发终局 ' + stats.shadowEnd + ' 次（抗争 ' + stats.resistUsed + ' 次）；主动「记起名字」 ' + stats.steadyUsed + ' 次');
   if (stats.echoTypes.size < 10) fail('300 局里回响埋点只覆盖 ' + stats.echoTypes.size + ' 类（应 ≥10）');
   if (!stats.echoTypes.has('thread')) fail('300 局里「这一趟的私事」一次都没推进过，主线可能被断开');
+  if (!stats.echoTypes.has('companion')) fail('300 局里一次都没遇上同行者，相遇事件可能被断开');
   ok('回响埋点实际覆盖 ' + stats.echoTypes.size + ' 类：' + Array.from(stats.echoTypes).sort().join(' / '));
 }
 
@@ -742,6 +747,16 @@ section('⑦ 渲染结构');
   if (!h6.includes('下一次它找上来，是在第 2 程')) fail('私事没有写明下一次在哪一程');
   if (/undefined|NaN/.test(h6)) fail('私事进度条含脏值');
   ok('启程页：私事名字、进度与下一次触发程数均可见');
+
+  /* 同行条：有同伴时才出现，信任画成两格 */
+  vm.runInContext('META = defaultMeta(); newGame("ranger", 1, "render-comp"); ' +
+    'G.companion = {id:"hunter",trust:2,used:0,firstLayer:4}; G.screen = "map"; render();', ctx);
+  const h7 = vm.runInContext('document.getElementById("app").innerHTML', ctx);
+  if (!h7.includes('同行') || !h7.includes('猎户') || !h7.includes('●●')) fail('地图页没有显示同行者与信任格');
+  vm.runInContext('G.companion = null; G.screen = "map"; render();', ctx);
+  if (vm.runInContext('document.getElementById("app").innerHTML', ctx).includes('class="compbar"'))
+    fail('没有同伴时不该显示同行条');
+  ok('同行条：有同伴时显示名字与信任格，没有时不占位');
 }
 
 /* ---------- 8. 内容扩容与回响埋点 ---------- */
@@ -1257,7 +1272,126 @@ section('⑬ 这一趟有个缘由');
   ok('旧档兼容：没有私事就安静地按原来的方式走');
 }
 
-section('⑭ 产物');
+/* ---------- 14. 同行者 ---------- */
+section('⑭ 有个人跟你走了一段');
+{
+  const COMPANIONS = get('COMPANIONS'), AT = get('COMPANION_AT');
+
+  /* 14.1 数据完整性：四种资源各一人，三种落点句齐全 */
+  if (COMPANIONS.length < 4) fail('同行者太少：' + COMPANIONS.length);
+  const fxKeys = new Set(), cids = new Set();
+  for (const c of COMPANIONS) {
+    if (cids.has(c.id)) fail('同行者 id 重复：' + c.id);
+    cids.add(c.id);
+    for (const k of ['name','meet','join','pass','line','use','echoStay','echoLeft','echoIdle'])
+      if (!c[k]) fail(c.id + ' 缺 ' + k);
+    if (!c.fx || Object.keys(c.fx).length !== 1) fail(c.id + ' 的能力不是单一资源');
+    fxKeys.add(Object.keys(c.fx)[0]);
+    if (!/\{n\}/.test(c.echoLeft)) fail(c.id + ' 的离开句没有留层数占位');
+  }
+  if (fxKeys.size !== 4) fail('四名同行者的能力没有区分（' + Array.from(fxKeys).join('/') + '）');
+  ok('4 名同行者：补给 / 材料 / 决心 / 生命 四种能力各一人，三种落点句齐全');
+
+  /* 14.2 种子派生稳定且覆盖四人 */
+  const picks = new Set();
+  for (let i = 0; i < 40; i++) picks.add(callC('pickCompanion', 'CSEED-' + i).id);
+  if (callC('pickCompanion', 'SAME').id !== callC('pickCompanion', 'SAME').id) fail('同种子派生的同行者不一致');
+  if (picks.size < 4) fail('40 个种子只覆盖 ' + picks.size + ' 名同行者');
+  ok('种子派生：同种子一致，40 个种子覆盖 ' + picks.size + ' 名同行者');
+
+  const freshComp = seed => {
+    vm.runInContext('META = defaultMeta(); newGame("ranger", 1, ' + JSON.stringify(seed) + '); G.screen="map";', ctx);
+    return getG();
+  };
+
+  /* 14.3 相遇层、秘藏不遇、遇过不再来 */
+  freshComp('COMP-NODE');
+  if (callC('companionEvent', { id:'c2', layer:2, type:'story', region:'shire' })) fail('第 3 程不该遇到同行者');
+  const ce = callC('companionEvent', { id:'c3', layer:AT, type:'story', region:'bree' });
+  if (!ce || ce.kicker !== '同行' || ce.options.length !== 2) fail('第 4 程没有同行者相遇事件');
+  if (callC('companionEvent', { id:'ct', layer:5, type:'treasure', region:'wild' })) fail('秘藏节点不该遇到同行者');
+  if (callC('companionEvent', { id:'cf', layer:11, type:'final', region:'wild' })) fail('终点不该遇到同行者');
+  vm.runInContext('G.companionMet = true', ctx);
+  if (callC('companionEvent', { id:'c4', layer:4, type:'story', region:'wild' })) fail('遇过之后不该再来');
+  ok('相遇：第 4 程起、秘藏与终点不遇、整局最多一次');
+
+  /* 14.4 带上 / 各走各的 */
+  const meet = seed => {
+    freshComp(seed);
+    const ev = callC('companionEvent', { id:'cm', layer:AT, type:'story', region:'bree' });
+    ctx.__ev = ev; ctx.__layer = AT;
+    vm.runInContext('G.event = __ev; G.layer = __layer; G.screen = "event";', ctx);
+    return ev;
+  };
+  let ev = meet('COMP-JOIN');
+  const cid = ev.companionId;
+  callC('chooseOption', ev.options.find(o => o.companion === 'join'));
+  let g = getG();
+  if (!g.companion || g.companion.id !== cid || g.companion.trust !== 2 || !g.companionMet)
+    fail('选择带上之后状态不对');
+  ev = meet('COMP-PASS');
+  callC('chooseOption', ev.options.find(o => o.companion === 'pass'));
+  g = getG();
+  if (g.companion || !g.companionMet) fail('选择各走各的之后不该有同伴');
+  ok('带上：信任 2 格；各走各的：这一局不再遇到别人');
+
+  /* 14.5 注入频率、四种效果、信任耗尽离开 */
+  for (const c of COMPANIONS) {
+    vm.runInContext('G.companion = {id:' + JSON.stringify(c.id) + ',trust:2,used:0,firstLayer:4}; G.eventCount = 2;', ctx);
+    const base = { id:'ev_test', type:'story', region:'shire', options:[{ label:'原有选项', fx:{} }] };
+    const vv = callC('injectCompanionOption', base);
+    const opt = vv.options.find(o => o.companionOpt);
+    if (!opt) { fail(c.id + ' 没有注入专属选项'); continue; }
+    if (Object.keys(opt.fx)[0] !== Object.keys(c.fx)[0]) fail(c.id + ' 注入的效果不是自己的资源');
+    vm.runInContext('G.eventCount = 3', ctx);
+    if (callC('injectCompanionOption', base).options.some(o => o.companionOpt)) fail(c.id + ' 在奇数事件也注入了');
+  }
+  vm.runInContext('G.companion = {id:"hunter",trust:2,used:0,firstLayer:4}; G.eventCount = 2;', ctx);
+  let v = callC('injectCompanionOption', { id:'ev_use', type:'story', region:'shire', options:[{ label:'原有选项', fx:{} }] });
+  ctx.__ev = v; ctx.__layer = 5;
+  vm.runInContext('G.event = __ev; G.layer = __layer; G.screen = "event";', ctx);
+  callC('chooseOption', v.options.find(o => o.companionOpt));
+  g = getG();
+  if (g.companion.trust !== 1 || g.companion.used !== 1) fail('搭手一次没有扣信任');
+  vm.runInContext('G.eventCount = 4', ctx);
+  const v2 = callC('injectCompanionOption', { id:'ev_use2', type:'story', region:'shire', options:[{ label:'原有选项', fx:{} }] });
+  ctx.__ev = v2; ctx.__layer = 6;
+  vm.runInContext('G.event = __ev; G.layer = __layer; G.screen = "event";', ctx);
+  callC('chooseOption', v2.options.find(o => o.companionOpt));
+  g = getG();
+  if (g.companion) fail('信任用完没有离开');
+  if (!g.companionLeft || g.companionLeft.layer !== 7) fail('离开没有记录层数');
+  ok('搭手：每两个事件一次、四种资源各归各、两次用完即离开并记下第 7 程');
+
+  /* 14.6 结算三种落点 */
+  let setN = 0;
+  const settle = (setup, kind) => {
+    freshComp('COMP-SET-' + (setN++));
+    vm.runInContext(setup, ctx);
+    callC('endRun', kind || 'retreat');
+    return getG().over;
+  };
+  const oStay = settle('G.companion={id:"hunter",trust:1,used:1,firstLayer:4}; G.layer=6;');
+  if (oStay.compState !== 'stay' || oStay.compBonus !== 4 || !oStay.compLine.includes('猎户'))
+    fail('同伴还在的结算不对');
+  if (!oStay.echo.includes('猎户一直跟着你')) fail('回响没写同伴还在');
+  const oIdle = settle('G.companion={id:"child",trust:2,used:0,firstLayer:4}; G.layer=5;');
+  if (oIdle.compState !== 'idle' || !oIdle.compLine.includes('没派上用场')) fail('同伴没用上的结算不对');
+  const oLeft = settle('G.companionLeft={id:"soldier",name:"老兵",layer:6}; G.companionMet=true; G.layer=8;');
+  if (oLeft.compState !== 'left' || !oLeft.compLine.includes('第 6 程')) fail('同伴离开的结算不对');
+  const rComp = vm.runInContext('renderResult(); document.getElementById("app").innerHTML', ctx);
+  if (/undefined|NaN/.test(rComp)) fail('结算页同行者一行含脏值');
+  ok('结算：还在 / 没用上 / 走了三种落点，结算页与回响都写对');
+
+  /* 14.7 没有同伴时不加条、不注入、不报错 */
+  vm.runInContext('G.companion = null; G.companionLeft = null; G.over = null;', ctx);
+  if (vm.runInContext('companionBar()', ctx) !== '') fail('没有同伴时不该有同行条');
+  if (callC('injectCompanionOption', { id:'x', options:[{ label:'a' }] }).options.length !== 1)
+    fail('没有同伴时不该注入选项');
+  ok('没有同伴时：不加条、不注入、不报错');
+}
+
+section('⑮ 产物');
 ok('index.html ' + (fs.statSync(HTML_PATH).size / 1024).toFixed(1) + ' KB / ' + html.split('\n').length + ' 行');
 ok('总层数 ' + TOTAL_LAYERS + '，装备 ' + Object.keys(ITEMS).length + ' 件，出身 ' + HEROES.length + ' 个，难度 ' + TIERS.length + ' 档');
 
