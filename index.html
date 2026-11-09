@@ -102,6 +102,8 @@ h3{font-size:15px;line-height:1.5}
 .mapscroll svg{width:100%;height:auto;display:block}
 .maplegend{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;padding:6px 0 16px;font-size:11.5px;color:var(--ink-3)}
 .maplegend span{display:inline-flex;align-items:center;gap:5px}
+.nextpeek{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center;margin:0 22px;padding:10px 0 14px;border-top:1px dashed var(--line-2);font-size:11.5px;color:var(--ink-2)}
+.nextpeek .npk{font-size:10.5px;letter-spacing:.14em;color:var(--gold)}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;border:1px solid}
 .node-g{cursor:pointer}
 .node-g.avail:hover .ring{stroke:#96682c;stroke-width:2}
@@ -350,6 +352,14 @@ const TAKE_LINES = [
   '不是不能，是不再想到。'
 ];
 
+/* 通晓：每三个事件多出的一条「观察」选项。
+   不给检定、不改写题目，只让人把这一处看清楚。 */
+const OBSERVE_LINES = [
+  '你把这一处看了一遍：土是干的，草倒向西边，风从东来。没什么新东西，但你现在知道自己站在哪儿了。',
+  '你站着没动，先数了一遍能看见的东西：三块石头，一道车辙，一处塌了的边。数完心里踏实了一点。',
+  '你后退半步，把整段路看进眼里。哪里能停、哪里不能，你心里有数了。'
+];
+
 /* 凭证：不是装备，是"你身上带着的东西"——钥匙、名字、暗号、信物 */
 const TOKENS = {
   gate_key:    { name:'一把生锈的钥匙', note:'齿很粗，不像开家门的。' },
@@ -385,7 +395,7 @@ const HEROES = [
     trait:'博闻强识', traitDesc:'每程首次学识检定额外 +2。', unlock:null },
 
   { id:'dwarf', name:'矮人', sub:'从孤山那边来的', attrs:{valor:4,cunning:2,lore:3,spirit:2}, hp:13, supply:7, resolve:2,
-    trait:'炉火的手艺', traitDesc:'锻造费用减半。开局带一把铁斧。',
+    trait:'炉火的手艺', traitDesc:'锻造费用减半。开局带「铁匠的斧」。',
     start:{ items:['axe'] }, rule:'forgeHalf', unlock:{ renown:40 } },
 
   { id:'elf', name:'精灵', sub:'还没离开中土的', attrs:{valor:2,cunning:2,lore:4,spirit:3}, hp:10, supply:7, resolve:3,
@@ -452,7 +462,7 @@ const TALENTS = [
   { id:'v2', b:'valor', row:0, name:'蛮力', cost:5, req:[], fx:{valor:1}, desc:'勇武 +1。' },
   { id:'v3', b:'valor', row:1, name:'再起', cost:10, req:['v1'], rule:'stand', desc:'生命归零时以 1 点存活，每场远征限一次。' },
   { id:'v4', b:'valor', row:1, name:'久战', cost:8,  req:['v2'], fx:{hpMax:3}, desc:'生命上限 +3。' },
-  { id:'v5', b:'valor', row:1, name:'铁壁', cost:8,  req:['v2'], fx:{hpMax:2}, desc:'生命上限 +2，并在开局获得 1 点决心。', extra:{resolve:1} },
+  { id:'v5', b:'valor', row:1, name:'铁壁', cost:8,  req:['v2'], fx:{hpMax:2}, desc:'生命上限 +2，决心上限 +1（开局回满）。', extra:{resolve:1} },
   { id:'v6', b:'valor', row:2, name:'不退', cost:14, req:['v3'], rule:'retreatFull', desc:'撤退时战利品不再折损。' },
   { id:'v7', b:'valor', row:2, name:'破阵', cost:14, req:['v4'], rule:'dmgReduce', desc:'每次受到的伤害减 1（最低 1）。' },
   { id:'v8', b:'valor', row:2, name:'誓约', cost:18, req:['v6','v7'], fx:{valor:2,hpMax:3}, desc:'勇武 +2，生命上限 +3。' },
@@ -460,17 +470,17 @@ const TALENTS = [
   /* 智慧 */
   { id:'l1', b:'lore', row:0, name:'博览', cost:5, req:[], fx:{lore:1}, desc:'学识 +1。' },
   { id:'l2', b:'lore', row:0, name:'明察', cost:5, req:[], rule:'dcPreview', desc:'所有选项的 DC 与成败概率直接显示。' },
-  { id:'l3', b:'lore', row:1, name:'预习', cost:10, req:['l1'], rule:'extraReroll', desc:'每场远征额外获得 1 次决心重掷。' },
+  { id:'l3', b:'lore', row:1, name:'预习', cost:10, req:['l1'], rule:'extraReroll', desc:'每场远征额外获得 1 次不花决心的重掷。' },
   { id:'l4', b:'lore', row:1, name:'辨物', cost:8,  req:['l1'], fx:{lore:1}, desc:'学识 +1，秘藏节点必定产出装备。', extra:{treasure:1} },
   { id:'l5', b:'lore', row:1, name:'静心', cost:8,  req:['l2'], fx:{resolveMax:1}, desc:'决心上限 +1。' },
   { id:'l6', b:'lore', row:2, name:'通晓', cost:14, req:['l3'], rule:'extraOption', desc:'每三个事件，额外获得一个「观察」选项。' },
-  { id:'l7', b:'lore', row:2, name:'远见', cost:14, req:['l4'], rule:'seeNext', desc:'地图上可以看见下一层节点的事件类型。' },
+  { id:'l7', b:'lore', row:2, name:'远见', cost:14, req:['l4'], rule:'seeNext', desc:'地图上可以看见再下一程的节点类型。' },
   { id:'l8', b:'lore', row:2, name:'智者', cost:18, req:['l6','l7'], fx:{lore:2,spirit:1}, desc:'学识 +2，心志 +1。' },
 
   /* 机运 */
   { id:'k1', b:'luck', row:0, name:'轻装', cost:5, req:[], fx:{supplyMax:2}, desc:'补给上限 +2。' },
   { id:'k2', b:'luck', row:0, name:'眼力', cost:5, req:[], fx:{cunning:1}, desc:'机敏 +1。' },
-  { id:'k3', b:'luck', row:1, name:'熟路', cost:10, req:['k1'], fx:{supplyMax:2}, desc:'补给上限 +2，开局补给已满。', extra:{fullSupply:1} },
+  { id:'k3', b:'luck', row:1, name:'熟路', cost:10, req:['k1'], fx:{supplyMax:2}, desc:'补给上限 +2，行路消耗 −1（最低 0）。', extra:{roadSave:1} },
   { id:'k4', b:'luck', row:1, name:'拾荒', cost:8,  req:['k1'], rule:'extraLoot', desc:'每个秘藏节点额外产出 1 份材料。' },
   { id:'k5', b:'luck', row:1, name:'预感', cost:8,  req:['k2'], rule:'firstBonus', desc:'每场远征的第一次检定 +2。' },
   { id:'k6', b:'luck', row:2, name:'老练', cost:14, req:['k3'], rule:'campBonus', desc:'营地恢复额外 +2。' },
@@ -3319,7 +3329,7 @@ const META_KEY = 'me_meta_v2';
 const SAVE_KEY = 'me_run_v2';
 
 function defaultMeta(){
-  return { renown:0, materials:0, maxTier:1, talents:[], armory:{}, loadout:{}, runs:0, wins:0, best:0, seen:{}, origins:['ranger','warden','lore'] };
+  return { renown:0, materials:0, maxTier:1, talents:[], armory:{}, loadout:{}, runs:0, wins:0, best:0, seen:{}, origins:['ranger','warden','lore'], lastHero:'' };
 }
 function loadMeta(){
   try{
@@ -3352,12 +3362,12 @@ function checkUnlocks(){
 
 /* ---------- 6. 地图 ---------- */
 const NODE_TYPES = {
-  start:    { label:'起', color:'#8a6a3a', fill:'#f0e3c8' },
-  final:    { label:'终', color:'#5a4632', fill:'#e6d7b8' },
-  encounter:{ label:'险', color:'#8a3a2a', fill:'#f7e4de' },
-  story:    { label:'闻', color:'#3d5a7a', fill:'#e4ecf4' },
-  camp:     { label:'营', color:'#4d6b3a', fill:'#e6eedd' },
-  treasure: { label:'藏', color:'#96682c', fill:'#f6ecd6' }
+  start:    { label:'起', name:'启程', color:'#8a6a3a', fill:'#f0e3c8' },
+  final:    { label:'终', name:'终点', color:'#5a4632', fill:'#e6d7b8' },
+  encounter:{ label:'险', name:'遭遇', color:'#8a3a2a', fill:'#f7e4de' },
+  story:    { label:'闻', name:'叙事', color:'#3d5a7a', fill:'#e4ecf4' },
+  camp:     { label:'营', name:'休整', color:'#4d6b3a', fill:'#e6eedd' },
+  treasure: { label:'藏', name:'秘藏', color:'#96682c', fill:'#f6ecd6' }
 };
 
 function layerRegion(layer){
@@ -3461,7 +3471,13 @@ function talentFx(){
     const t = TALENTS.find(x=>x.id===id);
     if(!t) continue;
     if(t.fx) for(const k in t.fx) out[k] = (out[k]||0) + t.fx[k];
-    if(t.extra) for(const k in t.extra) out[k] = (out[k]||0) + t.extra[k];
+    if(t.extra) for(const k in t.extra){
+      out[k] = (out[k]||0) + t.extra[k];
+      /* extra 里的键也要能在局内读到（秘藏必出、开局满补给等），
+         否则 talentFx 收了、运行时却拿不到。 */
+      out.rules[k] = (out.rules[k]||0) + t.extra[k];
+      if(k === 'resolve') out.extraResolve = (out.extraResolve||0) + t.extra[k];
+    }
     if(t.rule) out.rules[t.rule] = true;
   }
   return out;
@@ -3491,6 +3507,9 @@ function equippedFx(loadout){
 
 function newGame(heroId, tierId, seed){
   const hero = HEROES.find(h=>h.id===heroId);
+  /* 军械库是局外页面（G 为 null），矮人的锻造半价只能靠「上一次是谁出的门」来判定 */
+  META.lastHero = hero ? hero.id : '';
+  saveMeta(META);
   const tier = TIERS.find(t=>t.id===tierId) || TIERS[0];
   const map = genMap(seed);
   const tf = talentFx();
@@ -3518,6 +3537,7 @@ function newGame(heroId, tierId, seed){
     screen:'map', event:null, pending:null, log:[],
     walkedList:[], rerolls:0, perLayerLore:false, wardenUsed:false,
     standUsed:false, luckUsed:false, firstCheck:true,
+    freeRerolls: tf.rules.extraReroll ? 1 : 0, eventCount:0,
     renown:0, materials:0, over:null,
     campHalf: !!mods.campHalf, dcBonus: mods.dc||0, supplyDrain: mods.supplyDrain||0, dmgBonus: mods.dmg||0,
     hunt: !!mods.hunt, noRetreat: !!mods.noRetreat, finalDC: mods.finalDC||0,
@@ -3567,18 +3587,38 @@ function pushEcho(e){
   if(G.echoes.length > 40) G.echoes.shift();
 }
 
+/* 破阵：所有伤害都从这里走一次，减 1 但至少还要吃 1 点。
+   放在统一的扣血入口，才不会出现「检定失败减了、选项直伤没减」。 */
+function hurt(n){
+  if(!n || n <= 0) return 0;
+  const v = (G && G.rules && G.rules.dmgReduce) ? Math.max(1, n - 1) : n;
+  G.hp -= v;
+  return v;
+}
+
 function applyFx(fx, ctx){
   if(!fx) return [];
   let f = fx;
-  /* 难度 IV：营地与休整的恢复减半 */
+  /* 预留：营地与休整恢复减半（当前 6 档难度均未启用，TIERS 里没有 campHalf 配置） */
   if(f.hp && f.hp < 0 && G.dmgBonus) f = Object.assign({}, f, { hp: f.hp - G.dmgBonus });
   if(ctx && ctx.camp && G.campHalf){
-    f = Object.assign({}, fx);
+    f = Object.assign({}, f);
     if(f.hp > 0) f.hp = Math.ceil(f.hp / 2);
     if(f.supply > 0) f.supply = Math.ceil(f.supply / 2);
   }
+  /* 老练：营地与休整的恢复额外 +2（只对原本就有恢复的选项生效） */
+  if(ctx && ctx.camp && G.rules && G.rules.campBonus){
+    f = Object.assign({}, f);
+    if(f.hp > 0) f.hp += 2;
+    if(f.supply > 0) f.supply += 2;
+  }
   const out = [];
-  if(f.hp){ G.hp += f.hp; out.push({k:'生命',v:f.hp}); }
+  if(f.hp){
+    let shown = f.hp;
+    if(f.hp < 0) shown = -hurt(-f.hp);
+    else G.hp += f.hp;
+    out.push({k:'生命',v:shown});
+  }
   if(f.supply){ G.supply += f.supply; out.push({k:'补给',v:f.supply}); }
   if(f.resolve){ G.resolve += f.resolve; out.push({k:'决心',v:f.resolve}); }
   if(f.renown){ G.renown += f.renown; out.push({k:'声望',v:f.renown}); }
@@ -3644,6 +3684,7 @@ function applyReframe(id){
   let view = regionVariant(ev, layerRegion(G.layer));
   view = injectShadowOptions(view);
   view = takeGentleOptions(view);
+  view = injectObserveOption(view);
   G.event = shadowVariant(view);
   G.screen = 'event';
   render();
@@ -3694,7 +3735,7 @@ function injectShadowOptions(ev){
    判定只用 seed + 事件 id + 层数，同种子完全可复现，不用真随机。
    ------------------------------------------------------------ */
 function isGentle(o){
-  if(!o || o.free || o.final || o.shadowOpt || o.need || o.reframe || o.taken) return false;
+  if(!o || o.free || o.final || o.shadowOpt || o.observe || o.need || o.reframe || o.taken) return false;
   if(o.gentle) return true;
   const s = String(o.label || '');
   return GENTLE_HINTS.some(h => s.indexOf(h) >= 0);
@@ -3736,6 +3777,28 @@ function takeGentleOptions(ev){
   return Object.assign({}, ev, {
     options: ev.options.map((o,i) => taken.indexOf(i) >= 0 ? Object.assign({}, o, { taken:true }) : o),
     takenLine: line
+  });
+}
+
+/* 通晓：每三个事件多一条「观察」选项。
+   不给检定、不改题目、不碰数值结构，只多一个能点的看法。 */
+function injectObserveOption(ev){
+  if(!G || !ev || !ev.options) return ev;
+  if(!(G.rules && G.rules.extraOption)) return ev;
+  if(String(ev.id).indexOf('__') === 0 || String(ev.id).indexOf('r_L') === 0) return ev;
+  if(ev.group === 'solitude') return ev;
+  if(!G.eventCount || G.eventCount % 3 !== 0) return ev;
+  if(ev.options.some(o=>o.observe)) return ev;
+  const rnd = mulberry32(hashStr(G.seed + '|observe|' + G.eventCount));
+  const line = OBSERVE_LINES[Math.floor(rnd() * OBSERVE_LINES.length)];
+  return Object.assign({}, ev, {
+    options: ev.options.concat([{
+      label:'先站一会儿，把这一处看清楚',
+      observe:true,
+      auto:true,
+      fx:{ renown:1 },
+      ok:{ text: line }
+    }])
   });
 }
 
@@ -3782,8 +3845,7 @@ function applyCost(){
     out.text = '你确实做到了。方式让你事后想了很久。';
     out.fx.push({ k:'阴影', v:'+1' });
   } else if(key === 'hp'){
-    const dmg = 2 + (G.dmgBonus || 0);
-    G.hp -= dmg;
+    const dmg = hurt(2 + (G.dmgBonus || 0));
     out.text = '你确实做到了。代价是身上多了一道口子。';
     out.fx.push({ k:'生命', v:-dmg });
   } else {
@@ -3921,7 +3983,7 @@ function recalc(){
   const tier = TIERS.find(t=>t.id===G.tierId) || TIERS[0];
   G.hpMax = G.hero.hp + tf.hpMax + eq.hpMax + lb.hpMax;
   G.supplyMax = Math.max(3, G.hero.supply + tf.supplyMax + eq.supplyMax + lb.supplyMax + (tier.mods.supply||0) + (G.hero.rule === 'rider' ? -1 : 0));
-  G.resolveMax = G.hero.resolve + tf.resolveMax + eq.resolveMax + lb.resolveMax + (G.hero.rule === 'hobbit' ? 1 : 0);
+  G.resolveMax = G.hero.resolve + tf.resolveMax + eq.resolveMax + lb.resolveMax + tf.extraResolve + (G.hero.rule === 'hobbit' ? 1 : 0);
   clamp();
 }
 
@@ -4279,6 +4341,7 @@ function doImport(){
     ? m.origins.filter(id => HEROES.some(h => h.id === id))
     : [];
   c.origins = okOrigins.length ? okOrigins : ['ranger','warden','lore'];
+  c.lastHero = (m.lastHero && HEROES.some(h => h.id === m.lastHero)) ? m.lastHero : '';
 
   META = c;
   checkUnlocks();
@@ -4337,6 +4400,17 @@ function renderTalents(){
 function openCampBack(){ G = null; renderCamp(); }
 
 /* ---------- 军械库 ---------- */
+/* 锻造是局外行为，这一页 G 为 null，所以按「上一次是谁出的门」判定矮人半价。
+   按钮的可用状态和实际扣费必须用同一个函数，否则会出现「按钮灰着但点得动」。 */
+function forgeIsHalf(){
+  const hero = HEROES.find(h => h.id === META.lastHero);
+  return !!(hero && hero.rule === 'forgeHalf');
+}
+function forgeCost(plus){
+  const base = plus + 1;
+  return forgeIsHalf() ? Math.ceil(base / 2) : base;
+}
+
 function renderArmory(){
   const m = META;
   m.loadout = m.loadout || {};
@@ -4363,7 +4437,7 @@ function renderArmory(){
     if(!it) return '';
     const plus = m.armory[id] || 0;
     const equipped = Object.values(m.loadout).includes(id);
-    const cost = plus + 1;
+    const cost = forgeCost(plus);
     const fxTxt = Object.keys(it.fx).map(k=>{
       const label = ATTRS[k] ? ATTRS[k] : ({hpMax:'生命上限',supplyMax:'补给上限',resolveMax:'决心上限',hp:'生命'}[k] || k);
       return label + ' +' + it.fx[k];
@@ -4388,6 +4462,7 @@ function renderArmory(){
     <h2 style="font-size:16px">当前装配</h2>
     <div style="margin-top:8px">${slotRows}</div>
     <p class="note">强化每级给主属性 +1；到达 +5 封顶。锻造失败不会掉级。</p>
+    ${forgeIsHalf() ? '<p class="note" style="color:var(--gold)">上一次出门的是矮人。炉火的手艺还在：锻造费用减半。</p>' : ''}
   </div>
 
   <div class="card pad" style="margin-top:14px">
@@ -4412,7 +4487,7 @@ function renderArmory(){
     b.onclick = ()=>{
       const id = b.dataset.forge;
       const plus = m.armory[id] || 0;
-      const cost = (G && G.hero && G.hero.rule === 'forgeHalf') ? Math.ceil((plus+1)/2) : (plus + 1);
+      const cost = forgeCost(plus);
       if(plus>=5 || m.materials<cost) return;
       m.materials -= cost;
       m.armory[id] = plus + 1;
@@ -4444,12 +4519,31 @@ function renderMap(){
     }
   }
 
+  /* 远见：把可去节点的下一层也标亮，让玩家看见再下一程的节点类型 */
+  const peekIds = new Set();
+  if(G.rules && G.rules.seeNext){
+    for(const id of cur.next){
+      const n = map.index[id];
+      if(n) for(const nb of n.next) peekIds.add(nb);
+    }
+  }
+  const peekHtml = peekIds.size
+    ? `<div class="nextpeek"><span class="npk">远见 · 再下一程（虚线圈，不可点）</span>${Array.from(new Set(
+        Array.from(peekIds).map(id => {
+          const t = NODE_TYPES[map.index[id].type];
+          return t.label + ' · ' + t.name;
+        })
+      )).join('　')}</div>`
+    : '';
+
   for(const n of Object.values(map.index)){
     const t = NODE_TYPES[n.type];
     const isAvail = avail.has(n.id), isCur = n.id === G.at, isPast = visited.has(n.id) && !isCur;
-    const dim = !isAvail && !isCur && !isPast;
+    const dim = !isAvail && !isCur && !isPast && !peekIds.has(n.id);
+    const isPeek = peekIds.has(n.id) && !isAvail && !isCur && !isPast;
     nodes += `<g class="node-g ${isAvail?'avail':''} ${dim?'locked':''}" data-node="${n.id}">
       ${isAvail ? `<circle cx="${n.x}" cy="${n.y}" r="21" fill="none" stroke="#b8873f" stroke-width="0.9" opacity=".55"/>` : ''}
+      ${isPeek ? `<circle cx="${n.x}" cy="${n.y}" r="21" fill="none" stroke="#b8873f" stroke-width="0.9" stroke-dasharray="2 4" opacity=".5"/>` : ''}
       <circle class="ring" cx="${n.x}" cy="${n.y}" r="15" fill="${t.fill}" stroke="${isCur?'#96682c':t.color}" stroke-width="${isCur?2.4:(isAvail?1.7:1)}" opacity="${dim?.5:1}"/>
       <text x="${n.x}" y="${n.y+1}" text-anchor="middle" dominant-baseline="central" style="font:500 12px var(--serif);fill:${t.color};opacity:${dim?.62:1}">${t.label}</text>
       <circle cx="${n.x}" cy="${n.y}" r="26" fill="transparent"/>
@@ -4489,6 +4583,7 @@ function renderMap(){
         <span><i class="dot" style="background:#e6eedd;border-color:#4d6b3a"></i>营 · 休整</span>
         <span><i class="dot" style="background:#f6ecd6;border-color:#96682c"></i>藏 · 秘藏</span>
       </div>
+      ${peekHtml}
     </div>
 
     <div class="btnrow mapfoot" style="justify-content:space-between">
@@ -4521,11 +4616,12 @@ function enterNode(id){
   G.riderUsed = false;
 
   if(node.layer > 0){
-    G.supply -= (1 + (G.supplyDrain||0));
+    /* 熟路：认得路，就少走冤枉路（行路消耗 −1，但不倒给补给） */
+    G.supply -= Math.max(0, 1 + (G.supplyDrain||0) - ((G.rules && G.rules.roadSave) || 0));
     /* 越往东，侵蚀越重 */
     if(layerRegion(node.layer) === 'wild') addShadow(1);
     if(G.shadow >= 7) addShadow(1);
-    if(G.supply <= 0){ G.hp -= 2; addLog('补给耗尽，身体开始垮。'); }
+    if(G.supply <= 0){ hurt(2); addLog('补给耗尽，身体开始垮。'); }
   }
   clamp();
 
@@ -4533,7 +4629,7 @@ function enterNode(id){
   if(G.hunt && node.layer > 0){
     const rnd = mulberry32(hashStr(G.seed+'|hunt|'+id));
     if(rollD20(rnd) + G.attrs.spirit < effDC(13)){
-      G.hp -= 2;
+      hurt(2);
       addLog('追踪者跟上来了一点。');
     }
   }
@@ -4561,9 +4657,11 @@ function enterNode(id){
   }
   if(node.type === 'treasure'){
     G.materials += (G.rules && G.rules.extraLoot ? 2 : 1);
-    /* 秘藏本来就该翻出东西：按品质抽一件装备，用 seed 派生，可复现 */
+    /* 秘藏本来就该翻出东西：按品质抽一件装备，用 seed 派生，可复现。
+       辨物（extra.treasure）点亮后必定产出。 */
     const lrnd = mulberry32(hashStr(G.seed + '|loot|' + node.id));
-    if(lrnd() < 0.65 && G.loot.length < 5){
+    const guaranteed = !!(G.rules && G.rules.treasure);
+    if((guaranteed || lrnd() < 0.65) && G.loot.length < 5){
       const lid = rollLootItem(lrnd);
       if(lid && ITEMS[lid]){
         G.loot.push({ id: lid, plus: 0 });
@@ -4585,15 +4683,17 @@ function enterNode(id){
     G.pending = null; render(); return;
   }
   G.seen[ev.id] = true;
+  G.eventCount = (G.eventCount || 0) + 1;
   if(ev.group){
     G.groupCount = G.groupCount || {};
     G.groupCount[ev.group] = (G.groupCount[ev.group] || 0) + 1;
   }
-  /* 地区版 → 暗选项 → 夺走温和选项 → 阴影改写。
+  /* 地区版 → 暗选项 → 夺走温和选项 → 观察选项 → 阴影改写。
      全程走副本，EVENTS 里的原始事件一次也不改。 */
   let view = regionVariant(ev, node.region);
   view = injectShadowOptions(view);
   view = takeGentleOptions(view);
+  view = injectObserveOption(view);
   G.screen = 'event';
   G.event = shadowVariant(view);
   G.pending = null;
@@ -4612,6 +4712,7 @@ function dcHint(chk){
   let base = G.attrs[chk.attr];
   /* 这里只预测加成，不消费：真正消费发生在 chooseOption 进入检定时 */
   if(G.hero.rule === 'rider' && chk.attr === 'valor' && !G.riderUsed) base += 2;
+  if(G.rules && G.rules.firstBonus && G.firstCheck) base += 2;
   const p = Math.max(5, Math.min(95, Math.round((21 - (dc - base)) / 20 * 100)));
   if(G.rules && G.rules.dcPreview) return `DC ${dc} · ${ATTRS[chk.attr]} · 约 ${p}%`;
   return `DC ${dc} · ${ATTRS[chk.attr]}`;
@@ -4673,12 +4774,15 @@ function renderEvent(){
 function chooseOption(o){
   if(o.taken || (o.need && !hasNeed(o.need))) return;
   if(o.check){
-    /* 骑手「一鼓作气」在进入检定时消费一次；重掷不会把加成弄丢 */
+    /* 一次性加成在进入检定时定死并存进 pending，重掷不会丢，也不会重复拿 */
     let bonus = 0;
     if(G.hero.rule === 'rider' && o.check.attr === 'valor' && !G.riderUsed){
       G.riderUsed = true; bonus = 2;
     }
-    G.pending = { opt:o, riderBonus:bonus };
+    if(G.rules && G.rules.firstBonus && G.firstCheck){
+      bonus += 2; G.firstCheck = false;
+    }
+    G.pending = { opt:o, checkBonus:bonus };
     G.screen = 'check'; render(); return;
   }
   if(o.final) return endRun(G.hp > 0 ? 'win' : 'dead');
@@ -4713,8 +4817,10 @@ function renderCheck(){
   const o = G.pending.opt;
   const chk = o.check;
   const dc = effDC(chk.dc);
-  /* 加成在 chooseOption 里定好并存进 pending，重掷时保持一致 */
-  let base = G.attrs[chk.attr] + ((G.pending && G.pending.riderBonus) || 0);
+  /* 加成在 chooseOption 里定好并存进 pending，重掷时保持一致。
+     旧存档里这个字段叫 riderBonus，一并兼容。 */
+  const p = G.pending || {};
+  let base = G.attrs[chk.attr] + (Number.isFinite(p.checkBonus) ? p.checkBonus : (p.riderBonus || 0));
 
   app.innerHTML = topbar() + statbar() + `
     <div class="card event">
@@ -4738,12 +4844,14 @@ function renderCheck(){
 
   const rnd = mulberry32(hashStr(G.seed+'|'+G.at+'|'+chk.attr+'|'+G.event.id+'|'+(G.rerolls||0)));
   let raw = rollD20(rnd);
-  const calc = raw + base;
+  let calc = raw + base;
   let total = calc, traitNote = '', tier;
 
-  /* 机运：命运偏袒（自然 1 → 自然 20） */
+  /* 机运：命运偏袒（自然 1 → 自然 20）。
+     改的是骰面，合计也得跟着改，否则明细会出现「20 + 4 = 5」。 */
   if(raw === 1 && G.rules && G.rules.luckReroll && !G.luckUsed){
     G.luckUsed = true; raw = 20;
+    calc = raw + base; total = calc;
     traitNote = '命运的偏袒';
   }
 
@@ -4795,13 +4903,16 @@ function showRollActions(tier, traitNote){
   const ok = (tier === 'crit' || tier === 'clean' || tier === 'cost');
   const acts = document.createElement('div');
   acts.className = 'btnrow';
-  if(!ok && G.resolve > 0){
+  const freeReroll = !ok && (G.freeRerolls || 0) > 0;
+  if(!ok && (G.resolve > 0 || freeReroll)){
     const b = document.createElement('button');
     b.className = 'btn sm';
-    b.textContent = '花 1 点决心重掷';
+    b.textContent = freeReroll ? '免费重掷（预习）' : '花 1 点决心重掷';
     b.onclick = ()=>{
-      G.resolve -= 1; G.rerolls = (G.rerolls||0) + 1;
-      addLog('花费决心重掷 · ' + G.event.title);
+      if(freeReroll) G.freeRerolls -= 1;
+      else G.resolve -= 1;
+      G.rerolls = (G.rerolls||0) + 1;
+      addLog((freeReroll ? '免费重掷' : '花费决心重掷') + ' · ' + G.event.title);
       renderCheck();
     };
     acts.appendChild(b);
@@ -4830,13 +4941,8 @@ function settleCheck(tier, traitNote){
     addLog('屹立不倒：你撑住了。');
   }
 
-  let fx = branch.fx || {};
-  /* 武勇：破阵 —— 伤害减 1 */
-  if(fx.hp && fx.hp < 0 && G.rules && G.rules.dmgReduce){
-    fx = Object.assign({}, fx, { hp: Math.min(-1, fx.hp + 1) });
-  }
-
-  const changes = applyFx(fx, { camp: G.event.type === 'camp' });
+  /* 破阵的减伤在 applyFx 的统一扣血入口里做，这里不再重复处理 */
+  const changes = applyFx(branch.fx || {}, { camp: G.event.type === 'camp' });
   if(branch.chain) G.chain = branch.chain;
 
   /* 大成功：额外回报 */
@@ -4945,7 +5051,9 @@ function endRun(kind){
   }
   else if(kind === 'retreat'){
     renown = Math.floor(renown * 0.5);
-    kept = (G.rules && G.rules.retreatFull) ? G.loot.slice() : G.loot.slice();
+    /* 回头要轻装：默认只带走一半随身战利品；点亮「不退」才全带 */
+    const full = !!(G.rules && G.rules.retreatFull);
+    kept = full ? G.loot.slice() : G.loot.slice(0, Math.ceil(G.loot.length / 2));
     mats = Math.floor(mats * 0.5);
   } else if(kind === 'shadow'){
     renown = Math.floor(renown * 0.2);
@@ -4976,10 +5084,12 @@ function endRun(kind){
   if(renown > META.best) META.best = renown;
   saveMeta(META);
 
-  /* 倒下或堕入阴影时，把"本来能带回去的东西"记下来，结算页要让人看见 */
-  const lost = (kind === 'dead' || kind === 'shadow')
-    ? G.loot.slice(0, Math.max(0, G.loot.length - kept.length))
-    : [];
+  /* 倒下、堕入阴影、或回头没带走的，都要在结算页列出来。
+     kept 是身前那一截，lost 必须是它之外剩下的那一截，两边不能重叠。 */
+  let lost = [];
+  if(kind === 'retreat') lost = G.loot.slice(kept.length);
+  else if(kind === 'dead') lost = G.loot.slice(0, Math.max(0, G.loot.length - kept.length));
+  else if(kind === 'shadow') lost = G.loot.slice();
   G.over = { kind, reached, renown, mats, kept, added, lost, echo: buildEcho(kind, reached) };
   G.screen = 'result';
   clearRun();
@@ -5003,7 +5113,7 @@ function renderResult(){
     : '<span class="fx bad">什么也没带回来</span>';
 
   const lostHtml = o.lost && o.lost.length
-    ? `<p class="note" style="margin-top:14px;margin-bottom:6px">留在了荒野里：</p>
+    ? `<p class="note" style="margin-top:14px;margin-bottom:6px">${o.kind==='retreat' ? '留在了身后：' : '留在了荒野里：'}</p>
        <div class="fxlist">${o.lost.map(l=>{
          const it = ITEMS[l.id];
          return `<span class="fx lost">${it?esc(it.name):l.id}${l.plus?' +'+l.plus:''}</span>`;
@@ -5038,7 +5148,13 @@ function renderResult(){
         ? (o.kept && o.kept.length
             ? '倒下时，你手里还攥着一样东西。其余的留在了荒野里。'
             : '倒下时，身上的一切都留在了荒野里。')
-        : '活着带回来的东西已经存入军械库。'}${o.added ? ' 新藏品 ' + o.added + ' 件。' : ''}</p>
+        : o.kind==='retreat'
+          ? (o.lost && o.lost.length
+              ? '回头路上走得急，只带走了一半。其余的留在了身后。'
+              : '回头路上走得急，但一样也没落下。')
+          : o.kind==='shadow'
+            ? '身上的一切都留在了荒野里。'
+            : '活着带回来的东西已经存入军械库。'}${o.added ? ' 新藏品 ' + o.added + ' 件。' : ''}</p>
     </div>
 
     ${o.kind==='win' && G.tierId < TIERS.length ? `<p class="note" style="text-align:center;color:var(--gold)">难度 ${G.tierId+1} 已解锁。</p>` : ''}
@@ -5066,6 +5182,16 @@ function loadRun(){
     if(!raw) return null;
     const d = JSON.parse(raw);
     if(!d || !d.map || !d.map.index) return null;
+    /* 旧版本存下来的局没有这些字段。补齐默认值，刷新后行为不会悄悄停摆；
+       天赋规则按当前 META 重算一次，新接线的规则在半途的旧档里也能生效。 */
+    const tf = talentFx();
+    d.rules = Object.assign({}, d.rules || {}, tf.rules);
+    if(!Number.isFinite(d.freeRerolls)) d.freeRerolls = tf.rules.extraReroll ? 1 : 0;
+    if(!Number.isFinite(d.eventCount)) d.eventCount = 0;
+    if(!Array.isArray(d.echoes)) d.echoes = [];
+    if(d.pending && !Number.isFinite(d.pending.checkBonus)){
+      d.pending.checkBonus = Number.isFinite(d.pending.riderBonus) ? d.pending.riderBonus : 0;
+    }
     return d;
   }catch(e){ return null; }
 }
@@ -5116,6 +5242,7 @@ function clearRun(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
         let view = regionVariant(ev, layerRegion(G.layer));
         view = injectShadowOptions(view);
         view = takeGentleOptions(view);
+        view = injectObserveOption(view);
         G.event = shadowVariant(view);
         G.screen = 'event'; render();
       }
@@ -5137,6 +5264,7 @@ function clearRun(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
         if(ev){
           let view = injectShadowOptions(ev);
           view = takeGentleOptions(view);
+          view = injectObserveOption(view);
           G.event = shadowVariant(view);
           G.screen = 'event'; render();
         }
