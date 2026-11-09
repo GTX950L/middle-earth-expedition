@@ -3,7 +3,7 @@
    用法：node tests/sim.js
    零依赖。把 index.html 里的 <script> 抽出来放进 mock DOM 里跑：
    1) 数据完整性  2) 阴影机制  3) 规则接线  4) 刷新恢复  5) 可复现性  6) 300 局模拟
-   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 装备带回  11) 产物。
+   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 装备带回  11) 私事主线  12) 产物。
    不启动浏览器，不写网络，不改仓库文件。
    平衡曲线（各难度通关率是否单调）另见 tests/diag.js。 */
 
@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.6，能完整玩通。', '版本号']
+    ['v0.7，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -518,13 +518,15 @@ section('④ 刷新恢复');
   delete parsed.steadyLeft;                     // 模拟 v0.4 及以前：没有阴影对抗字段
   delete parsed.shadowResistUsed;
   delete parsed.secLeft;                        // 模拟 v0.5 及以前：没有「收好」次数
+  delete parsed.thread;                         // 模拟 v0.6 及以前：没有私事主线
   const c2 = makeCtx({ me_run_v2: JSON.stringify(parsed) });
   const G2 = vm.runInContext('G', c2);
   if (!G2 || G2.screen === 'title') fail('刷新后没有接上未结束的一局');
   else if (!Array.isArray(G2.echoes)) fail('旧存档缺少 echoes 字段时没有兼容补齐');
   else if (G2.steadyLeft !== 2 || G2.shadowResistUsed !== false) fail('旧存档没有补齐 v0.5 的阴影对抗字段');
   else if (G2.secLeft !== 2 || !Array.isArray(G2.loot)) fail('旧存档没有补齐 v0.6 的 secLeft / loot');
-  else ok('刷新恢复到 ' + G2.screen + '；旧存档 echoes / steadyLeft / shadowResistUsed / secLeft 均已补齐');
+  else if (G2.thread !== null) fail('旧存档没有把 thread 补成 null');
+  else ok('刷新恢复到 ' + G2.screen + '；旧档 echoes / steadyLeft / shadowResistUsed / secLeft / thread 均已补齐');
 }
 
 /* ---------- 5/6. 自动模拟 ---------- */
@@ -675,6 +677,7 @@ section('⑥ 300 局自动模拟');
   ok('出现被夺走选项的事件 ' + stats.takenSeen + ' 次；地区版正文命中 ' + stats.regionSeen + ' 次');
   ok('阴影到顶触发终局 ' + stats.shadowEnd + ' 次（抗争 ' + stats.resistUsed + ' 次）；主动「记起名字」 ' + stats.steadyUsed + ' 次');
   if (stats.echoTypes.size < 10) fail('300 局里回响埋点只覆盖 ' + stats.echoTypes.size + ' 类（应 ≥10）');
+  if (!stats.echoTypes.has('thread')) fail('300 局里「这一趟的私事」一次都没推进过，主线可能被断开');
   ok('回响埋点实际覆盖 ' + stats.echoTypes.size + ' 类：' + Array.from(stats.echoTypes).sort().join(' / '));
 }
 
@@ -729,6 +732,16 @@ section('⑦ 渲染结构');
   if (!h5.includes('第三道只画了一半')) fail('v0.4 新事件的正式叙事文本没有渲染');
   if (/undefined|NaN|\[object/.test(h5)) fail('v0.4 事件页渲染含脏值');
   ok('v0.4 事件页：新叙事文本已渲染、无脏值');
+
+  /* 私事进度条：启程页就该看见「这一趟还带着一件事」 */
+  vm.runInContext('META = defaultMeta(); newGame("ranger", 1, "render-thread")', ctx);
+  const h6 = vm.runInContext('document.getElementById("app").innerHTML', ctx);
+  const threadName = vm.runInContext('threadDef().name', ctx);
+  if (!h6.includes('这一趟还带着一件事')) fail('启程页没有显示私事进度条');
+  if (!h6.includes(threadName)) fail('私事名字没有渲染出来');
+  if (!h6.includes('下一次它找上来，是在第 2 程')) fail('私事没有写明下一次在哪一程');
+  if (/undefined|NaN/.test(h6)) fail('私事进度条含脏值');
+  ok('启程页：私事名字、进度与下一次触发程数均可见');
 }
 
 /* ---------- 8. 内容扩容与回响埋点 ---------- */
@@ -1108,7 +1121,143 @@ section('⑪ 装备真的带得回来');
   else ok('+0 装备永久销毁：loadout 与 equipped 同步清空，不留幽灵装备');
 }
 
-section('⑫ 产物');
+/* ---------- 13. 这一趟有个缘由 ----------
+   种子派生 → 到点换事件 → 推进/放下 → 结算落点，整条链都要有行为断言。 */
+section('⑬ 这一趟有个缘由');
+{
+  const THREADS = get('THREADS'), STEPS = get('THREAD_STEPS');
+
+  /* 13.1 数据完整性：结构、触发层、两难选项、放下标记、三种落点 */
+  if (THREADS.length < 4) fail('私事主线太少：' + THREADS.length);
+  const ids = new Set();
+  for (const t of THREADS) {
+    if (ids.has(t.id)) fail('私事 id 重复：' + t.id);
+    ids.add(t.id);
+    if (t.steps.length !== STEPS.length) fail(t.id + ' 段数与触发层数不符');
+    if (!t.intro || !t.echoDone || !t.echoHalf || !t.echoLost || !t.reward) fail(t.id + ' 缺开场 / 落点 / 回报');
+    for (let i = 0; i < t.steps.length; i++) {
+      const s = t.steps[i];
+      if (s.at !== STEPS[i]) fail(t.id + ' 第 ' + (i + 1) + ' 段触发层不对');
+      if (!s.title || !s.text) fail(t.id + ' 第 ' + (i + 1) + ' 段缺标题或正文');
+      const push = s.opts.filter(o => o.thread === 'push');
+      const drop = s.opts.filter(o => o.thread === 'drop');
+      if (push.length < 2 || drop.length !== 1) fail(t.id + ' 第 ' + (i + 1) + ' 段不是「两条推进 + 一条放下」');
+      if (!drop[0].gentle) fail(t.id + ' 第 ' + (i + 1) + ' 段的放下没有标 gentle');
+      for (const o of s.opts) {
+        if (!o.label || !o.ok || !o.ok.text) fail(t.id + ' 第 ' + (i + 1) + ' 段选项缺文案');
+        if (o.check) fail(t.id + ' 私事不该掷骰');
+      }
+    }
+  }
+  ok(THREADS.length + ' 条私事 × ' + STEPS.length + ' 段：触发层、两难结构、放下标记、三种落点齐全');
+
+  /* 13.2 种子派生：同种子不变，不同种子能走出不同主线 */
+  const picks = new Set();
+  for (let i = 0; i < 40; i++) picks.add(callC('makeThread', 'SEED-' + i).id);
+  if (callC('makeThread', 'SAME').id !== callC('makeThread', 'SAME').id) fail('同种子派生的私事不一致');
+  if (picks.size < 3) fail('40 个种子只覆盖 ' + picks.size + ' 条私事');
+  ok('种子派生：同种子一致，40 个种子覆盖 ' + picks.size + ' 条私事');
+
+  const freshThread = seed => {
+    vm.runInContext('META = defaultMeta(); newGame("ranger", 1, ' + JSON.stringify(seed) + '); G.screen="map";', ctx);
+    return getG();
+  };
+  const n1 = { id:'tn1', layer:1, type:'story', region:'shire' };
+  const n0 = { id:'tn0', layer:0, type:'story', region:'shire' };
+
+  /* 13.3 到点才替换随机事件，办成 / 放下之后不再来 */
+  freshThread('THREAD-NODE');
+  if (callC('threadEvent', n0)) fail('第 1 程不该触发私事');
+  const ev1 = callC('threadEvent', n1);
+  if (!ev1 || ev1.kicker !== '缘由' || ev1.threadStep !== 0 || ev1.options.length < 3) fail('第 2 程没有换上私事节点');
+  if (ev1.type !== 'story') fail('私事不该用遭遇类型（否则会接暗选项）');
+  if (callC('injectShadowOptions', ev1) !== ev1) fail('私事被注入了暗选项');
+  vm.runInContext('G.thread.done = true', ctx);
+  if (callC('threadEvent', n1)) fail('办成之后还在触发私事');
+  vm.runInContext('G.thread.done = false; G.thread.dropped = true', ctx);
+  if (callC('threadEvent', n1)) fail('放下之后还在触发私事');
+  ok('触发层：第 1 程照常随机、第 2 程换上私事；不接暗选项、办成或放下后即收线');
+
+  /* 13.4 阴影划掉「放下」，但保底留两条推进 */
+  freshThread('THREAD-SHADOW');
+  vm.runInContext('G.shadow = 5', ctx);
+  const evS = callC('threadEvent', n1);
+  const view = callC('takeGentleOptions', evS);
+  const taken = view.options.filter(o => o.taken);
+  if (taken.length !== 1 || taken[0].thread !== 'drop') fail('阴影没有准确划掉「放下」，或误伤了推进选项');
+  const alive = view.options.filter(o => !o.taken);
+  if (alive.length < 2 || alive.some(o => o.thread !== 'push')) fail('划掉之后没有留下两条推进的路');
+  ok('阴影 ≥4：只划掉「放下」，两条付代价的推进路仍在');
+
+  /* 13.5 推满三段：办成 → 结算声望 / 材料 / 回响 / 结算页都有落点 */
+  const pushStep = (i, seed) => {
+    const node = { id:'tp' + i, layer:STEPS[i], type:'story', region:'shire' };
+    const ev = callC('threadEvent', node);
+    if (!ev) { fail('第 ' + (i + 1) + ' 段私事没触发'); return; }
+    ctx.__ev = ev; ctx.__layer = STEPS[i];
+    vm.runInContext('G.event = __ev; G.layer = __layer; G.screen = "event";', ctx);
+    callC('chooseOption', ev.options.find(o => o.thread === 'push'));
+  };
+  freshThread('THREAD-DONE');
+  for (let i = 0; i < 3; i++) pushStep(i);
+  let g = getG(), def = THREADS.find(t => t.id === g.thread.id);
+  if (!g.thread.done || g.thread.pushes !== 3 || g.thread.step !== 3) fail('推进三段没有办成');
+  if (g.thread.firstLayer !== STEPS[0] + 1) fail('firstLayer 记错了程数');
+  callC('endRun', 'retreat');
+  let o = getG().over;
+  if (o.threadState !== 'done' || o.threadBonus !== def.reward.renown || o.threadMats !== def.reward.materials)
+    fail('办成后的结算奖励不对');
+  if (!o.echo.includes(def.echoDone)) fail('回响没写办成的落点');
+  const rDone = vm.runInContext('renderResult(); document.getElementById("app").innerHTML', ctx);
+  if (!rDone.includes(def.name) || /undefined|NaN/.test(rDone)) fail('结算页没有私事落点或含脏值');
+  ok('推满三段：办成 → 声望 / 材料 / 回响 / 结算页四处都有落点');
+
+  /* 13.6 放下：没有奖励，也不再出现后续段 */
+  freshThread('THREAD-DROP');
+  ctx.__ev = callC('threadEvent', n1); ctx.__layer = STEPS[0];
+  vm.runInContext('G.event = __ev; G.layer = __layer; G.screen = "event";', ctx);
+  callC('chooseOption', ctx.__ev.options.find(x => x.thread === 'drop'));
+  if (!getG().thread.dropped) fail('放下没有记录进状态');
+  if (callC('threadEvent', { id:'z', layer:4, type:'story', region:'bree' })) fail('放下之后还会再来');
+  callC('endRun', 'retreat');
+  o = getG().over;
+  if (o.threadState !== 'dropped' || o.threadBonus !== 0 || o.threadMats !== 0) fail('放下之后不该给奖励');
+  ok('放下：状态收线、后续段不再触发、结算不给奖励');
+
+  /* 13.7 推两段就收手：半成给一半 */
+  freshThread('THREAD-HALF');
+  pushStep(0); pushStep(1);
+  def = THREADS.find(t => t.id === getG().thread.id);
+  callC('endRun', 'retreat');
+  o = getG().over;
+  if (o.threadState !== 'half' || o.threadBonus !== Math.floor(def.reward.renown / 2)) fail('半成的结算奖励不对');
+  if (!o.echo.includes(def.echoHalf)) fail('回响没写半途而废的落点');
+  ok('只推两段：半成给一半奖励，回响写「带到过半路上」');
+
+  /* 13.8 所有正文都引用真实行程、状态分支与第 N 程时序，且无脏值 */
+  freshThread('THREAD-MEM');
+  vm.runInContext('G.log = ["老磨坊的灯 · 推门进去看看", "启程 · 夏尔边境", "收好 · 铁匠的斧"];', ctx);
+  if (vm.runInContext('threadMemory()', ctx) !== '老磨坊的灯') fail('行程记录没有挑中真实遇过的事件');
+  for (const t of THREADS) {
+    ctx.__id = t.id;
+    vm.runInContext('G.thread = { id:__id, step:0, pushes:0, done:false, dropped:false, firstLayer:2 }; G.flags = {seed_damp:true};', ctx);
+    for (const s of t.steps) {
+      ctx.__st = s.text;
+      const txt = vm.runInContext('typeof __st === "function" ? __st(G) : __st', ctx);
+      if (typeof txt !== 'string' || !txt.trim() || /undefined|NaN|\[object/.test(txt))
+        fail(t.id + ' 正文有脏值或为空');
+    }
+  }
+  ok('4 条私事 × 3 段正文：真实行程引用、种子受潮分支、第 N 程时序均无脏值');
+
+  /* 13.9 旧档没有 thread 时，不显示进度条、不触发节点 */
+  vm.runInContext('G.thread = null; G.over = null;', ctx);
+  if (vm.runInContext('threadBar()', ctx) !== '') fail('旧档没有私事时不该显示进度条');
+  if (callC('threadEvent', n1)) fail('旧档没有私事时不该触发节点');
+  ok('旧档兼容：没有私事就安静地按原来的方式走');
+}
+
+section('⑭ 产物');
 ok('index.html ' + (fs.statSync(HTML_PATH).size / 1024).toFixed(1) + ' KB / ' + html.split('\n').length + ' 行');
 ok('总层数 ' + TOTAL_LAYERS + '，装备 ' + Object.keys(ITEMS).length + ' 件，出身 ' + HEROES.length + ' 个，难度 ' + TIERS.length + ' 档');
 
