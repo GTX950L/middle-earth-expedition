@@ -238,6 +238,17 @@ h3{font-size:15px;line-height:1.5}
 @media (max-width:640px){ .tiergrid{grid-template-columns:1fr 1fr} }
 
 .opt.auto-opt.locked-opt{border-left-color:#cfc2ab}
+/* 阴影夺走的选项：不删除，划掉留在原位，让人看见少了一种可能 */
+.opt.taken-opt{opacity:.55;cursor:not-allowed;background:var(--panel-2);border-style:dashed;border-color:#d9c9b0}
+.opt.taken-opt:hover{border-color:#d9c9b0;background:var(--panel-2)}
+.opt.taken-opt .lbl{text-decoration:line-through;text-decoration-color:var(--blood);text-decoration-thickness:1px;color:var(--ink-3)}
+.opt.taken-opt .idx,.opt.taken-opt .dc{color:var(--blood)}
+.taken-note{margin:10px 2px 0;font-family:var(--serif);font-size:12.5px;color:var(--blood);line-height:1.8}
+/* 结算回响：浅色描边，不抢数字 */
+.echo-card{margin-top:14px;padding:18px 22px;background:var(--panel-3);border:1px solid var(--line-2);border-left:3px solid var(--gold-3)}
+.echo-card .ek{font-size:10.5px;letter-spacing:.2em;color:var(--gold);margin-bottom:9px}
+.echo-card .prose p{font-family:var(--serif);font-size:13.5px;line-height:1.95;color:var(--ink-2);margin-bottom:9px}
+.echo-card .prose p:last-child{margin-bottom:0}
 
 /* 存档导出 / 导入 */
 .savebox{margin-top:18px;padding:16px 18px;border:1px solid var(--line-2);border-radius:8px;background:var(--panel-2)}
@@ -266,7 +277,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.2
+   中土远征 v0.3
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    ============================================================ */
 
@@ -316,6 +327,27 @@ const SHADOW_OPTS = [
   { label:'松开手，让它过去',   text:'你松开了。有什么东西从你身体里穿过去，把挡路的一切都推开了。它做完之后，回头看了你一眼。' },
   { label:'闭上眼，点头',       text:'你闭上眼。再睁开时，路已经通了。你不记得中间发生了什么，也不打算问。' },
   { label:'你已经不再说话了',   text:'你没有说话。事情自己解决了。你继续走，脚步比之前稳。' }
+];
+
+/* ------------------------------------------------------------
+   阴影夺走的温和选项
+   阴影从 4 起不再只是多给一条路，它开始拿走「本可以不用这么做的那条路」。
+   识别：事件可显式标 gentle:true；否则用下面这些明确退让的措辞兜底。
+   只用短语，不用单字 —— 免得把「不睡，只打听消息」这类主动选项误判成退让。
+   ------------------------------------------------------------ */
+const GENTLE_HINTS = [
+  '绕道','绕过去','绕开','避开','不管','当作没','不惹','算了','谢过','继续赶路','继续走',
+  '什么都不做','放弃','不问','不理会','离开','走开','放着','不碰','不进去','不去',
+  '不追','不拦','不拿','不捡','不用','不试','不说话','收手','退开','停在原地','不动',
+  '先不','没有再看','站一会儿','假装','由它','随它','不叫住','不回头'
+];
+
+/* 被夺走时留下的一句话，按阴影深浅换措辞 */
+const TAKE_LINES = [
+  '这些念头还在，只是你现在想不起来它们有什么用。',
+  '你本来可以那么做。你记得有这么一条路，但已经找不到入口了。',
+  '温和的办法一条一条变少了。你没有觉得可惜。',
+  '不是不能，是不再想到。'
 ];
 
 /* 凭证：不是装备，是"你身上带着的东西"——钥匙、名字、暗号、信物 */
@@ -1692,6 +1724,135 @@ const EVENTS = [
       { label:'闭上眼睛，数它离你有多远', fx:{shadow:1, resolve:1}, ok:{} },
       { label:'不去感觉它', fx:{shadow:1}, ok:{} },
       { label:'站起来，走出去看它在不在', fx:{shadow:-1, hp:-2}, ok:{} }
+    ] },
+
+  /* ==================== v0.3 · 夏尔新增 ==================== */
+  { id:'shire_scarecrow', region:'shire', type:'story', weight:10, title:'田里的稻草人',
+    text:'麦田中间立着一个稻草人。昨天你路过这里的时候没有它。\n\n衣服是旧的，袖口补过，针脚很密。',
+    options:[
+      { label:'走过去，看清它是怎么扎的', check:{attr:'cunning',dc:11},
+        ok:{ text:'袖子里塞的是干草，手却是木头削的。五根指头，一根都不缺，指甲也刻了出来。', fx:{renown:1,flag:{scarecrow:true}} },
+        no:{ text:'田埂上的泥是软的。你踩滑了，摔了一跤。爬起来时，它面对的方向变了。', fx:{hp:-1} } },
+      { label:'问田边干活的人是谁扎的', check:{attr:'spirit',dc:12},
+        ok:{ text:'他说不是他扎的，也不是这一带的人扎的。他昨天就看见了，没敢讲。', fx:{resolve:1} },
+        no:{ text:'他看了一眼就低头继续干活，说风大，别站在田里。', fx:{resolve:-1} } },
+      { label:'不看了，沿篱笆走', gentle:true, fx:{}, ok:{ text:'你沿篱笆走到田头。回过一次头，它还立在那儿。' } }
+    ] },
+
+  { id:'shire_milk', region:'shire', type:'camp', weight:9, title:'门前的牛奶',
+    text:'一户洞府的门前放着一小罐牛奶，盖着布，旁边压着一张字条：给过路的。\n\n门关着，烟囱没有烟。',
+    options:[
+      { label:'拿走，留几枚铜子', fx:{supply:2,renown:1}, ok:{ text:'你把铜子压在石头下面。走出很远，罐子还是凉的。' } },
+      { label:'只喝一半，照原样放回去', fx:{hp:1,supply:1}, ok:{ text:'布重新盖好，字条压回原处。你退开的时候，门还是关着。' } },
+      { label:'不碰，继续走', gentle:true, fx:{}, ok:{ text:'罐子在门口放到天黑。你没看见有人来收。' } }
+    ] },
+
+  { id:'shire_bee', region:'shire', type:'treasure', weight:8, title:'坡上的蜂箱',
+    text:'坡上摆着几只蜂箱，有一只的盖子被掀开了。蜂还在，不躁，也不散。',
+    options:[
+      { label:'慢慢把盖子盖回去，取一小块蜜', check:{attr:'lore',dc:11},
+        ok:{ text:'你动作放得很慢。蜂没有动。蜜是去年的，颜色深得发黑。', fx:{supply:2,material:1} },
+        no:{ text:'你被蜇了两下。蜜没取到，手肿了半天。', fx:{hp:-2} } },
+      { label:'只把盖子扣回去', fx:{renown:1}, ok:{ text:'盖子扣上的声音很轻。你退开的时候，蜂还是没动。' } }
+    ] },
+
+  { id:'shire_ditch', region:'shire', type:'encounter', weight:9, title:'灌渠里的水声',
+    text:'灌渠里有水声。这一季渠该是干的。\n\n渠很窄，两边的草长得比人高，看不见水在哪一段。',
+    options:[
+      { label:'拨开草，看水是从哪儿来的', check:{attr:'cunning',dc:12},
+        ok:{ text:'是一截破了的木闸在漏。闸是新装的，装反了。', fx:{renown:1,flag:{sluice:true}} },
+        no:{ text:'草里惊起一只鸟。你什么也没看清，裤脚全湿了。', fx:{supply:-1} } },
+      { label:'顺着渠往上游走', check:{attr:'valor',dc:11},
+        ok:{ text:'上游没有人。只有一串湿脚印，从渠里上来，往东去了。', fx:{renown:2,shadow:1} },
+        no:{ text:'渠越走越窄，你绕了很久才找回原路。', fx:{supply:-2} } },
+      { label:'离渠远一点，走大路', gentle:true, fx:{supply:-1}, ok:{ text:'大路绕了半里。绕过去之后，水声听不见了。' } }
+    ] },
+
+  /* ==================== v0.3 · 布理新增 ==================== */
+  { id:'bree_ledger', region:'bree', type:'story', weight:10, title:'客栈的账本',
+    text:'柜台上摊着一本账。最末几行被人划掉了，划得很用力，纸都破了。\n\n伙计在擦杯子，没有看你这边。',
+    options:[
+      { label:'借灯看被划掉的那几行', check:{attr:'lore',dc:13},
+        ok:{ text:'你认出一个词：预付。后面是三晚，落款那天还没到。', fx:{renown:2,flag:{ledger:true}} },
+        no:{ text:'墨被水洇过，只剩几个笔画。伙计把账本收走了。', fx:{resolve:-1} } },
+      { label:'问伙计划掉的是谁', check:{attr:'spirit',dc:12},
+        ok:{ text:'他说记错了。说完把账本翻到新的一页，笔尖一直没落下去。', fx:{renown:1,resolve:1} },
+        no:{ text:'他没抬头，说客人自己划的，别问了。', fx:{} } },
+      { label:'合上，走开', gentle:true, fx:{}, ok:{ text:'你把账本合回原样。门口有人进来，带进来一股雨味。' } }
+    ] },
+
+  { id:'bree_shoe', region:'bree', type:'story', weight:9, title:'没生火的铁匠棚',
+    text:'铁匠棚里没生火。砧上放着一只马蹄铁，还是热的。\n\n棚外的地上没有蹄印，也没有马。',
+    options:[
+      { label:'摸一下，看它还要热多久', check:{attr:'cunning',dc:11},
+        ok:{ text:'热是从中间往外散的，像刚从火里夹出来。棚外的路是干的。', fx:{renown:1,flag:{hotshoe:true}} },
+        no:{ text:'你碰翻了旁边的钳子。响声在空棚里传得很远。', fx:{resolve:-1} } },
+      { label:'等铁匠回来', check:{attr:'spirit',dc:12},
+        ok:{ text:'等到天暗，没人回来。马蹄铁凉了，你把它放回原处。', fx:{resolve:1,supply:-1} },
+        no:{ text:'你等了很久。后来发现棚后根本没有门。', fx:{supply:-1} } },
+      { label:'不进棚，从大道外侧绕过去', gentle:true, fx:{}, ok:{ text:'你从大道外侧走过去。棚里一直没有动静。' } }
+    ] },
+
+  { id:'bree_toll', region:'bree', type:'encounter', weight:10, title:'收路钱的两个人',
+    text:'路当中横着一根木杆。两个人站在杆边，说这条路要收钱。\n\n没有牌子，没有秤，也没有第三个人从这儿过去。',
+    options:[
+      { label:'给钱，过路', fx:{supply:-2}, ok:{ text:'他们没数，也没看你的包。木杆抬起来的时候，两个人一起看的不是你。' } },
+      { label:'问是谁定的规矩', check:{attr:'spirit',dc:13},
+        ok:{ text:'年头、地名、印章，都说得出来。说完他们把木杆自己抬开了。', fx:{renown:2,supply:1} },
+        no:{ text:'其中一个往前站了半步。你算了算身上的补给，没再问。', fx:{supply:-1,resolve:-1} } },
+      { label:'退回岔路，绕开', gentle:true, fx:{supply:-2}, ok:{ text:'岔路烂得很难走。回头看，木杆还横着，没人过。' } }
+    ] },
+
+  { id:'bree_bell', region:'bree', type:'camp', weight:8, title:'不打钟的钟楼',
+    text:'村口有座小钟楼。钟还在，钟舌没了。\n\n楼底下的草被压出一块圆，压得很平整。',
+    options:[
+      { label:'上楼看看', check:{attr:'cunning',dc:12},
+        ok:{ text:'钟里干净得不像话，连灰都没有。绳子上有个新打的结。', fx:{renown:1,flag:{bell:true}} },
+        no:{ text:'楼梯第三级朽了。你踩穿下来，膝盖磕得不轻。', fx:{hp:-2} } },
+      { label:'在楼底坐一会儿，歇脚', gentle:true, fx:{hp:2,resolve:1}, ok:{ text:'很安静。没有钟，也没有风，你却一直没睡着。' } }
+    ] },
+
+  /* ==================== v0.3 · 荒野新增 ==================== */
+  { id:'wild_cairn', region:'wild', type:'story', weight:10, title:'别人堆的石堆',
+    text:'路边有一堆小石头，堆得很整齐，最上面一块是白的。\n\n这样的石堆，这一路你已经见过三个。',
+    options:[
+      { label:'数一数是不是同一数目', check:{attr:'lore',dc:12},
+        ok:{ text:'都是七块。前两个也是七。最上面那块白的，朝向都一样。', fx:{renown:2,flag:{cairn:true}} },
+        no:{ text:'数到一半风起，把上面几块吹塌了。你没再数。', fx:{resolve:-1} } },
+      { label:'添一块上去', fx:{shadow:1,renown:1}, ok:{ text:'你放上去之后，石堆看起来比刚才完整。你没有回头看它。' } },
+      { label:'不碰，记下位置就走', gentle:true, fx:{}, ok:{ text:'你记住了这块石头的样子。前面还有第四个。' } }
+    ] },
+
+  { id:'wild_hoofprint', region:'wild', type:'encounter', weight:9, title:'干泥上的湿蹄印',
+    text:'这一带很久没下雨。地上却有一串湿的蹄印，往前去的，间距很大。\n\n泥是干的，只有印子里是湿的。',
+    options:[
+      { label:'蹲下，看清它往哪儿去', check:{attr:'cunning',dc:13},
+        ok:{ text:'边缘没有塌，像刚按上去的。它往东，和你的路一样。', fx:{renown:1,flag:{hoof:true}} },
+        no:{ text:'你蹲得太久，站起来眼前发黑。蹄印被风吹平了。', fx:{hp:-1} } },
+      { label:'跟着走一段', check:{attr:'valor',dc:12},
+        ok:{ text:'走了半里，蹄印在一块石头前停住，然后没有了。石头是温的。', fx:{renown:2,shadow:1} },
+        no:{ text:'你跟着拐进一片碎石地，绕了很久才找回原路。', fx:{supply:-2} } },
+      { label:'换条路，不跟', gentle:true, fx:{supply:-1}, ok:{ text:'你往北绕了半里。绕过去之后，路上还是有蹄印。' } }
+    ] },
+
+  { id:'wild_water', region:'wild', type:'treasure', weight:9, title:'石窝里的水',
+    text:'背阴的石窝里积着一窝水，很清，底下连沙都没有。\n\n旁边放着一只破了的木碗。',
+    options:[
+      { label:'装满水囊', fx:{supply:2}, ok:{ text:'水很凉。装到一半你发现，石窝里的水一点没少。' } },
+      { label:'先看清碗是谁留下的', check:{attr:'lore',dc:12},
+        ok:{ text:'碗底刻着一个名字，磨得只剩最后一笔。水能喝。', fx:{supply:2,renown:1} },
+        no:{ text:'碗沿割了手。水还是装了，只是你一路上都在想那只碗。', fx:{supply:2,hp:-1,resolve:-1} } },
+      { label:'不喝，继续走', gentle:true, fx:{}, ok:{ text:'你把木碗照原样放回去。走出很远，还看得见那一小片亮。' } }
+    ] },
+
+  { id:'wild_shelter', region:'wild', type:'camp', weight:9, title:'有人住过的岩棚',
+    text:'岩棚下有铺平过的干草，压痕还在，是人身体的形状。\n\n旁边有一小堆灰，冷透了。',
+    options:[
+      { label:'在铺上睡一晚', fx:{hp:3,resolve:1}, ok:{ text:'草还是干的。你躺下去，压痕正合适，像是照着你的身量留的。' } },
+      { label:'把灰拨开看看', check:{attr:'cunning',dc:11},
+        ok:{ text:'灰底下压着半张纸，字被烧得只剩一行：别等天亮。', fx:{renown:2,shadow:1} },
+        no:{ text:'灰扬起来，迷了眼。你咳了很久才缓过来。', fx:{hp:-1} } },
+      { label:'不进去，在棚外坐到天亮', gentle:true, fx:{hp:1,supply:-1}, ok:{ text:'外面有风，但你能看见东边。天亮得比你想的慢。' } }
     ] }
 ];
 
@@ -1709,6 +1870,23 @@ const EVENTS = [
    ============================================================ */
 const SHADOW_TEXT_AT = 3;
 const SHADOW_TEXTS = {
+  /* ---------- v0.3 新增 ---------- */
+  shire_scarecrow: '麦子刚割过，地里留着齐膝的茬。\n\n稻草人在田中间。你昨天走过这里，也记得它昨天就在。\n\n衣服是旧的，袖口补过。你现在认得那件衣服的针脚——补的人手很稳，你小时候见过。\n\n它的手垂着。五根指头，一根不缺。\n\n你站在篱笆外看了一会儿，没有走进田里。不是不想，是已经看完了。',
+
+  shire_ditch: '渠里有水声。\n\n这一季渠该是干的，你没有觉得奇怪。\n\n草长得比人高，你拨开，看见那截装反了的木闸。水从背面积过来，一直在漏。\n\n上游那串湿脚印你也没有去看。你知道它往哪儿去，也知道它不会在半路停。\n\n你沿着渠走了一段，然后回到路上。',
+
+  bree_ledger: '账本摊在柜台上。最末几行被划掉了，划得很用力。\n\n你认得那笔迹。\n\n预付，三晚，落款那天还没到。名字被划掉了，但那几个字你念得出来。\n\n伙计还在擦同一个杯子。他没有抬头，你也没有问。\n\n你把账本合上，划掉的那页朝下。这件事本来就该是这样。',
+
+  bree_shoe: '炉子是冷的，砧上那只马蹄铁是热的。\n\n这两件事放在一起，很合理。\n\n你没有去摸，也没有等铁匠回来。棚后有没有门，你早就知道了。\n\n你从大道上走过去，脚步和平时一样。\n\n走出很远，你才想起来自己本来是要进那个棚子的。',
+
+  wild_cairn: '石堆还是七块。\n\n前两个也是七，这一个也是。最上面那块白的朝着东，和前两个一样。\n\n你没有数。数是多余的，你走过第三个的时候就已经知道了。\n\n你添了一块上去，放得很稳。\n\n现在它是八块。这件事没有让你觉得不对。',
+
+  wild_shelter: '干草铺得很平，压痕是人身体的形状。\n\n你躺下去。正合适。\n\n灰是冷的，堆得很拢。半张纸上那行字你不用拨开也知道写的是什么。\n\n你没有等天亮，也没有不等。这两件事现在没有区别。\n\n岩棚外面，东边已经开始发白。',
+
+  any_stone: '石头半埋在土里，字被苔藓吃掉大半。\n\n你认得那几个字。这里曾是某个王国的边界——你不是读过，是一直知道。\n\n碑上还有一行：往东三里，有水。\n\n你没有蹲下来刮苔藓。也没有继续走。\n\n你站在碑边，等了一下。不知道在等什么，但等得很耐心。',
+
+  any_fire: '火还在烧，人不在。\n\n三块石头整整齐齐地摆着。你走过去，坐下。\n\n这个位置本来就是留给你的，摆石头的人知道你会来。\n\n火很暖。你没有等谁，也没有觉得需要等。\n\n坡上没有那个人影。今天没有。',
+
   shire_tracks: '麦子刚割过，地里还留着齐膝的茬。\n\n篱笆外有一串脚印。\n\n你认得这串脚印。不是见过——是认得，像认出一件自己的旧衣服。\n\n它从麦田西头过来，在篱笆前站了很久。你现在明白它为什么站那么久了：它在看这扇门怎么开。\n\n它折回去，是因为今晚不必进来。',
 
   bree_pony: '你推门进去，屋里安静了。\n\n不是一瞬。是一直安静着。\n\n二十来个人都在看你，看得很平静，没有人惊讶，也没有人低头。角落里那个兜帽人没有抬头，但你知道他在笑。\n\n你找了个位置坐下。没有人挪开，也没有人说话。你本来就该坐这儿。',
@@ -1756,6 +1934,18 @@ const SHADOW_TEXTS = {
    写法上只观察"你"，不推进情节，所以不会和正文冲突。
    ------------------------------------------------------------ */
 const SHADOW_TAIL = {
+  /* ---------- v0.3 新增 ---------- */
+  shire_milk: '罐子还在门口。你没有想是谁放在那儿的。',
+  shire_bee: '盖子扣回去了。蜂没有动，你也没有再看。',
+  bree_toll: '木杆抬起来的时候，你没有问价钱。',
+  bree_bell: '钟没有响。你也没有抬头看它。',
+  wild_hoofprint: '蹄印往东。你的脚步和它是同一个节奏。',
+  wild_water: '碗放回原处。你没有再想那只碗是谁的。',
+  any_cache: '布包还塞在石缝里。你没有伸手。',
+  any_sol_letter: '纸还在。你想了一下要写给谁，然后就放下了。',
+  any_sol_song: '歌没有记全。你也没有再试着往下哼。',
+  any_sol_afterrain: '雨停了。你坐着，没有觉得该起身。',
+
   any_rain: '雨还在下。你没有加快脚步，也没有慢下来。',
   any_bridge: '你站在断口边上看了很久。桥断了这件事，现在听起来很合理。',
   any_stranger: '铁杯子的声音远了。你没有跟上去，也没有觉得可惜。',
@@ -1783,12 +1973,64 @@ const SHADOW_TAIL = {
   any_sol_hands: '手放下来了。这双手现在做的事，你不再觉得奇怪。'
 };
 
+/* ------------------------------------------------------------
+   通用池的地区版正文
+   同一件事，在夏尔、布理、荒野不该长得一样。只换 text，
+   options / 数值 / 条件 / 事件链一概不碰，所以不会和 TEXTS 对齐冲突。
+   阴影整篇替换优先于地区版 —— 阴影够深时，地方的气味会被吞掉。
+   ------------------------------------------------------------ */
+const REGION_TEXTS = {
+  shire: {
+    any_rain: '雨从午后就没停，把麦茬压得伏在地上。\n\n你在田边一间放农具的棚子底下躲雨。门是虚掩的，里面有干草和铁锈的味道，墙上挂着一把没磨的镰刀。柴是湿的，火起了三次才着。\n\n雨里有人打着伞从田埂上走过，没停，也没往里看。',
+    any_bridge: '溪上的木桥断了两块板。断口是新的，木茬还白着，看得出是农人自己钉的桥，不是给车走的。\n\n对岸那片麦子已经割过了。绕到下游的石板浅滩，要多走小半个时辰。',
+    any_stone: '菜园边上有块半埋的石头，顶上被苔藓盖住，边角磨得很圆。种菜的人拿它当界桩，还在旁边插了根木条挡鸡。\n\n你拨开草，看见石头上刻过字。这里曾经是某个王国的边界。',
+    any_cache: '田埂的石墙塌了一截，缝里塞着个布包。布已经烂成褐色，里面的东西还在。\n\n墙是新补过的，只有这一截没补。像是有人特意留了个地方。',
+    any_stranger: '前面有个人，背着空口袋，走得不快不慢，脚上沾着自家院子里的泥。你跟上他，他也不回头。\n\n走了一段，他才开口：一个人走，容易走错。',
+    any_fire: '田边有堆火在烧秸秆，火不大，人不在。三块石头整整齐齐地压在火堆边上，是怕火爬到麦茬里去。\n\n再远一点，有一扇窗亮着。',
+    any_forage: '篱笆根上长着一丛黑刺莓，果子是深色的，熟透的那几颗一碰就要掉。旁边还有几根韧的藤条，是去年绑篱笆剩下的。',
+    any_fog: '雾从河那边漫上来，先没了篱笆，再没了田埂。前面十步就看不见了。\n\n你听见雾里有脚步声，和你的步子一样快，踩在湿土上。',
+    any_trade: '一个走村串户的货郎在路口停住，把担子放下：换点什么？\n\n他把布掀开，里面是针、盐、线团和几块压得硬实的小饼。都是这一带用得上的东西。',
+    any_night: '天黑了，回村还赶得上，但你不想再走那段回头路。\n\n园子边上有棵老树，树根旁有一块被人坐平了的土。你清了清，捡了些干枝。远处有窗还亮着。'
+  },
+  bree: {
+    any_rain: '雨从午后就没停，把大道上的车辙灌成两道水沟。\n\n你在废弃驿棚的檐下躲着，梁上还挂着半截缰绳。柴是湿的，火起了三次才着。\n\n雨里有车过去，赶车的人没停，也没问你要不要捎一段。',
+    any_bridge: '古大道上的木桥断了一截，断口的木茬还白着。桥面宽得能过两辆车，现在只剩半边。\n\n对岸的车辙接着往东。绕路要多走半天，而且不一定有第二座桥。',
+    any_stone: '路边立着一块半埋的石头，被苔藓吃掉大半，顶上还有人用凿子新刻了一个箭头。\n\n你认得底下那几个旧字：这里曾是某个王国的边界。新刻的比旧的清楚得多。',
+    any_cache: '驿站塌了一半的墙，石缝里塞着个布包。布已经烂了，里面的东西还在。\n\n墙根堆着别人丢下的油布和断绳，只有这一处被人动过。',
+    any_stranger: '前面有个人，走得不快不慢，靴子上是大道上的灰，不是本地的土。你跟上他，他也不回头。\n\n走了一段，他才开口：一个人走，容易走错。',
+    any_fire: '路边有个现成的火堆，火还在烧，人不在。火堆旁整整齐齐地摆着三块石头，压住一角油布。\n\n车辙从火堆边绕开，绕得很小心。',
+    any_forage: '大道边的灌木上结着深色的小果子，灰蒙蒙的，靠近路的那几丛尤其灰。地上还有几根能用的藤条，是从散了的货捆上掉下来的。',
+    any_fog: '雾是从大道两头一起起的，先没了车辙，再没了路边的桩子。前面十步就看不见了。\n\n你听见雾里有脚步声，和你的步子一样快，踩在碎石上。',
+    any_trade: '一个背着大包的人迎面走来，看见你就停下：换点什么？\n\n他把包打开，里面什么都有——盐、火石、旧刀、别人当掉的扣子。看不出哪样是他自己的。',
+    any_night: '天黑了，前面没有村子，只有一处塌了半边的驿棚。\n\n你在棚边清出一块平地，捡了些干柴。柴里混着一小段车辕，烧起来有股焦油味。'
+  },
+  wild: {
+    any_rain: '雨从午后就没停，风把它斜着推过来，打在脸上有点疼。\n\n你找到一处岩檐，勉强能挡住风，地上一半是水。柴是湿的，火起了三次才着。\n\n雨里没有别的声音。这里连鸟都不叫。',
+    any_bridge: '桥断在一条干河上。断口的木茬是白的，但木头本身已经灰了，看不出是哪年搭的。\n\n河床里没有水，只有被冲圆的石头。绕下去再爬上来，要多走半天。',
+    any_stone: '石头半埋在碎石里，字被风磨得只剩几道浅槽。四周没有田，没有墙，也没有别的立着的东西。\n\n你认得其中两笔：这里曾是某个王国的边界。现在没有王国，也没有边。',
+    any_cache: '一堆塌了的石头，看不出原先是墙还是别的什么。缝里塞着个布包，布已经烂了，里面的东西还在。\n\n风把沙吹进石缝，堆在布包下面。它在这里放了很久。',
+    any_stranger: '前面有个人，走得不快不慢。这一带已经好几天没见过人了。\n\n你跟上他，他也不回头。走了一段，他才开口：一个人走，容易走错。',
+    any_fire: '路边有个现成的火堆，火还在烧，人不在。火堆旁整整齐齐地摆着三块石头。\n\n四周没有树，没有草垛，没有能烧的东西。你不知道这火是靠什么烧到现在的。',
+    any_forage: '石缝里长着几丛硬灌木，枝上挂着深色的小果子，皮很厚，捏不动。旁边的藤条是枯的，但还韧，折不断。',
+    any_fog: '雾来得很快，没有从哪边来，就是忽然在了。前面十步就看不见了，脚下的路也看不见。\n\n你听见雾里有脚步声，和你的步子一样快，踩在石头上。',
+    any_trade: '一个背着大包的人站在路边，看见你就停下：换点什么？\n\n这里没有集市，没有车辙，也没有第二个行人。他把包打开，里面什么都有。',
+    any_night: '天黑了，前面没有村子，也没有树。\n\n你找到一块背风的石头，在它脚下清出一块平地。柴是从更远的地方捡来的，全是枯枝，一折就断。'
+  }
+};
+
 /* 抽中事件后按当前阴影取版本：有整篇替换就用替换，否则看有没有注脚 */
 function shadowVariant(ev){
   if(!(G && G.shadow >= SHADOW_TEXT_AT)) return ev;
   if(SHADOW_TEXTS[ev.id]) return Object.assign({}, ev, { text: SHADOW_TEXTS[ev.id] });
   if(SHADOW_TAIL[ev.id]) return Object.assign({}, ev, { text: ev.text + '\n\n' + SHADOW_TAIL[ev.id] });
   return ev;
+}
+
+function regionVariant(ev, region){
+  if(!ev || ev.region !== 'any') return ev;
+  const r = REGION_TEXTS[region];
+  if(!r || !r[ev.id]) return ev;
+  return Object.assign({}, ev, { text: r[ev.id] });
 }
 
 const TEXTS = {};
@@ -2935,6 +3177,118 @@ TEXTS.wild_merchant_after = {
 };
 /* ==================== 荒野 · 正式叙事文本 ==================== */
 
+/* ==================== v0.3 · 夏尔新增 ==================== */
+TEXTS.shire_scarecrow = {
+  title: '田里的稻草人',
+  text: '麦子刚割过，地里留着齐膝的茬。\n\n田中间立着一个稻草人。昨天你从这条路走过，那时没有它。\n\n衣服是旧的，袖口补过，针脚很密，补的人手很稳。它的两只手垂着，没有风吹的时候也不晃。',
+  opts: [
+    { ok: '袖子里塞的是干草。手却是木头削的，五根指头，一根不缺，连指甲都刻了出来。木头是新的。', no: '田埂上的泥是软的。你踩滑了，一膝跪进泥里。爬起来时它还朝着原处，只是你觉得它刚才不是朝那边。' },
+    { ok: '他先把手里的活做完，才说不是他扎的，也不是这一带的人扎的。他昨天就看见了，没敢讲。\n\n说完他把草帽往下压了压。', no: '他看了一眼，就低头继续干活。说风大，别站在田里。你再问，他就只顾着割了。' },
+    { ok: '你沿篱笆走到田头。中间回过一次头，它还立在那儿，袖子一动不动。' }
+  ]
+};
+TEXTS.shire_milk = {
+  title: '门前的牛奶',
+  text: '一户洞府的圆门前放着一小罐牛奶，罐口盖着布，旁边压着一张字条：给过路的。\n\n门关着，烟囱没有烟。门前扫得很干净，扫痕一直延到路边。',
+  opts: [
+    { ok: '你把几枚铜子压在石头下面，字条照原样摆好。\n\n走出很远，罐子还是凉的。' },
+    { ok: '布重新盖好，字条压回原处，罐子放回原来的印子里。\n\n你退开的时候，门还是关着。' },
+    { ok: '罐子在门口放到天黑。你没看见有人来收，也没看见那扇门开过。' }
+  ]
+};
+TEXTS.shire_bee = {
+  title: '坡上的蜂箱',
+  text: '坡上摆着几只蜂箱，其中一只的盖子被掀开了，斜靠在箱沿。\n\n蜂还在，不躁，也不散。有几只在盖子上爬，像在等谁把它放回去。',
+  opts: [
+    { ok: '你动作放得很慢。蜂没有动。\n\n蜜是去年的，颜色深得发黑，切面很整齐，是被人割走过一块的。', no: '你被蜇了两下。蜜没取到，手肿了半天。\n\n蜂始终没有散。' },
+    { ok: '盖子扣上的声音很轻。你退开的时候，蜂还是没动。' }
+  ]
+};
+TEXTS.shire_ditch = {
+  title: '灌渠里的水声',
+  text: '灌渠里有水声。这一季渠该是干的。\n\n渠很窄，两边的草长得比人高，看不见水在哪一段响。',
+  opts: [
+    { ok: '是一截破了的木闸在漏。闸是新装的，木料还没变色，只是装反了，水从背面积过来。\n\n装闸的人应该看得出来。', no: '草里惊起一只鸟。你什么也没看清，裤脚全湿了，鞋里灌了泥。' },
+    { ok: '上游没有人。只有一串湿脚印，从渠里上来，往东去了。\n\n脚印比你的大，步子比你的长。', no: '渠越走越窄，最后只剩一道土沟。你绕了很久才找回原路，水声早没了。' },
+    { ok: '大路绕了半里。绕过去之后，水声听不见了。' }
+  ]
+};
+
+/* ==================== v0.3 · 布理新增 ==================== */
+TEXTS.bree_ledger = {
+  title: '客栈的账本',
+  text: '柜台上摊着一本账。最末几行被人划掉了，划得很用力，纸都破了，划痕透到下一页。\n\n伙计在擦杯子，擦了很久同一个。',
+  opts: [
+    { ok: '你认出一个词：预付。后面是三晚，落款那天还没到。\n\n被划掉的只有名字。', no: '墨被水洇过，只剩几个笔画。你还没看清，伙计就把账本合上收走了。' },
+    { ok: '他说记错了。说完把账本翻到新的一页，笔尖一直没落下去。\n\n你走的时候，那页还是空的。', no: '他没抬头，说客人自己划的，别问了。杯子擦得吱吱响。' },
+    { ok: '你把账本合回原样，划掉的那页朝下。\n\n门口有人进来，带进来一股雨味。' }
+  ]
+};
+TEXTS.bree_shoe = {
+  title: '没生火的铁匠棚',
+  text: '铁匠棚里没生火，炉子是冷的，风箱上落着灰。\n\n砧上却放着一只马蹄铁，还是热的。棚外的地上没有蹄印，也没有马。',
+  opts: [
+    { ok: '热是从中间往外散的，像刚从火里夹出来。\n\n棚外的路是干的，连车辙里都没有新印。', no: '你碰翻了旁边的钳子。响声在空棚里传得很远，传完就没有了。' },
+    { ok: '等到天暗，没人回来。马蹄铁凉了，你把它放回砧上原来的位置。', no: '你等了很久。后来绕到棚后，发现那面根本没有门。' },
+    { ok: '你从大道外侧走过去。棚里一直没有动静。' }
+  ]
+};
+TEXTS.bree_toll = {
+  title: '收路钱的两个人',
+  text: '路当中横着一根木杆，两头搁在石墩上。两个人站在杆边，说这条路要收钱。\n\n没有牌子，没有秤，也没有第三个人从这儿过去。',
+  opts: [
+    { ok: '他们没数，也没看你的包。木杆抬起来的时候，两个人一起看的不是你，是你身后的路。' },
+    { ok: '年头、地名、印章，都说得出来，一样不差。\n\n说完他们把木杆自己抬开了，没有再收。', no: '其中一个往前站了半步，没说话。你算了算身上的补给，没再问。' },
+    { ok: '岔路烂得很难走，车辙里全是泥。\n\n回头看，木杆还横着，没人过。' }
+  ]
+};
+TEXTS.bree_bell = {
+  title: '不打钟的钟楼',
+  text: '村口有座小钟楼。钟还在，钟舌没了，钟口空空地朝着路。\n\n楼底下的草被压出一块圆，压得很平整，不像是一个人坐出来的。',
+  opts: [
+    { ok: '钟里干净得不像话，连灰都没有。\n\n绳子上有个新打的结，打得很好，是常打这种结的手。', no: '楼梯第三级朽了。你踩穿下来，膝盖磕得不轻，在楼底坐了好一会儿才站起来。' },
+    { ok: '很安静。没有钟，也没有风，你却一直没睡着。\n\n天亮时那块圆还在。' }
+  ]
+};
+
+/* ==================== v0.3 · 荒野新增 ==================== */
+TEXTS.wild_cairn = {
+  title: '别人堆的石堆',
+  text: '路边有一堆小石头，堆得很整齐，最上面一块是白的。\n\n这样的石堆，这一路你已经见过三个。前两个也在路的同一侧。',
+  opts: [
+    { ok: '都是七块。前两个也是七。\n\n最上面那块白的，朝向都一样，朝着东。', no: '数到一半风起，把上面几块吹塌了。你没再数，也没把它堆回去。' },
+    { ok: '你放上去之后，石堆看起来比刚才完整。\n\n你没有回头看它。' },
+    { ok: '你记住了这块石头的样子，还有它离路有多远。\n\n前面还有第四个。' }
+  ]
+};
+TEXTS.wild_hoofprint = {
+  title: '干泥上的湿蹄印',
+  text: '这一带很久没下雨。地上却有一串湿的蹄印，往前去的，间距很大。\n\n泥是干的，只有印子里是湿的，边上一点也没有洇开。',
+  opts: [
+    { ok: '边缘没有塌，像刚按上去的。\n\n它往东，和你的路一样。', no: '你蹲得太久，站起来眼前发黑。扶着膝盖缓过来的时候，蹄印已经被风吹平了。' },
+    { ok: '走了半里，蹄印在一块石头前停住，然后没有了。\n\n石头是温的。你摸了一下，又把手收回来。', no: '你跟着拐进一片碎石地，绕了很久才找回原路。回到原地时，那串印子也不见了。' },
+    { ok: '你往北绕了半里。\n\n绕过去之后，路上还是有蹄印。' }
+  ]
+};
+TEXTS.wild_water = {
+  title: '石窝里的水',
+  text: '背阴的石窝里积着一窝水，很清，底下连沙都没有。\n\n旁边放着一只破了的木碗，缺口朝上，像是被人轻轻搁在那儿的。',
+  opts: [
+    { ok: '水很凉。装到一半你发现，石窝里的水一点没少。\n\n你把水囊塞好，没有再装第二遍。' },
+    { ok: '碗底刻着一个名字，磨得只剩最后一笔。\n\n水能喝。你喝完把碗放回原处。', no: '碗沿割了手。水还是装了，只是你一路上都在想那只碗是谁放下的。' },
+    { ok: '你把木碗照原样放回去，缺口还是朝上。\n\n走出很远，还看得见那一小片亮。' }
+  ]
+};
+TEXTS.wild_shelter = {
+  title: '有人住过的岩棚',
+  text: '岩棚下有铺平过的干草，压痕还在，是人身体的形状。\n\n旁边有一小堆灰，冷透了，堆得很拢，没有散开。',
+  opts: [
+    { ok: '草还是干的。你躺下去，压痕正合适，像是照着你的身量留的。\n\n你睡得很沉。' },
+    { ok: '灰底下压着半张纸，字被烧得只剩一行：别等天亮。\n\n你把纸按原样盖回灰里。', no: '灰扬起来，迷了眼。你咳了很久才缓过来，纸上什么也没看清。' },
+    { ok: '外面有风，但你能看见东边。\n\n天亮得比你想的慢。' }
+  ]
+};
+
 /* 把长文本覆盖到事件结构上 */
 (function applyTexts(){
   const bad = [];
@@ -3158,7 +3512,7 @@ function newGame(heroId, tierId, seed){
       lore: hero.attrs.lore + tf.lore + ef.lore,
       spirit: hero.attrs.spirit + tf.spirit + ef.spirit
     },
-    items:[], loot:[], flags:{}, seen:{}, chain:null,
+    items:[], loot:[], flags:{}, seen:{}, chain:null, echoes:[],
     shadow:0, vow:null, vowLayer:0, costsTaken:[], tokens:[], groupCount:{},
     map, at:map.layers[0][0].id, layer:0,
     screen:'map', event:null, pending:null, log:[],
@@ -3204,6 +3558,14 @@ function clamp(){
 }
 
 function addLog(s){ G.log.unshift(s); if(G.log.length>50) G.log.pop(); }
+
+/* 回响埋点：只记这一局真正发生过的事，结算时不编造 */
+function pushEcho(e){
+  if(!G) return;
+  if(!Array.isArray(G.echoes)) G.echoes = [];
+  G.echoes.push(Object.assign({ layer: G.layer + 1 }, e));
+  if(G.echoes.length > 40) G.echoes.shift();
+}
 
 function applyFx(fx, ctx){
   if(!fx) return [];
@@ -3279,8 +3641,10 @@ function applyReframe(id){
   const ev = EVENTS.find(e=>e.id===id);
   if(!ev) return false;
   G.seen[ev.id] = true;
-  injectShadowOptions(ev);
-  G.event = ev;
+  let view = regionVariant(ev, layerRegion(G.layer));
+  view = injectShadowOptions(view);
+  view = takeGentleOptions(view);
+  G.event = shadowVariant(view);
   G.screen = 'event';
   render();
   return true;
@@ -3299,10 +3663,14 @@ function addShadow(n){
   const before = shadowStage().name;
   G.shadow = Math.max(0, Math.min(SHADOW_MAX, (G.shadow || 0) + n));
   const after = shadowStage();
-  if(after.name !== before) addLog('阴影 · ' + after.name + '：' + after.line);
+  if(after.name !== before){
+    addLog('阴影 · ' + after.name + '：' + after.line);
+    pushEcho({ t:'stage', name:after.name });
+  }
 }
 
-/* 阴影 ≥4 时，遭遇事件里会长出一个不必检定的选项 */
+/* 阴影 ≥2 时，遭遇事件里会长出一个不必检定的选项。
+   必须返回副本：EVENTS 是全局常量，直接改会把这一局的措辞留到下一局。 */
 function injectShadowOptions(ev){
   if(!G || G.shadow < 2) return ev;
   if(ev.type !== 'encounter') return ev;
@@ -3310,12 +3678,65 @@ function injectShadowOptions(ev){
   if(String(ev.id).indexOf('__') === 0) return ev;
   const idx = Math.min(SHADOW_OPTS.length - 1, Math.floor((G.shadow - 2) / 2));
   const so = SHADOW_OPTS[idx];
-  ev.options = ev.options.concat([{
-    label: so.label,
-    shadowOpt: true,
-    ok: { text: so.text, fx: { shadow:3, renown:2 } }
-  }]);
-  return ev;
+  return Object.assign({}, ev, {
+    options: ev.options.concat([{
+      label: so.label,
+      shadowOpt: true,
+      fx: { shadow:3, renown:2 },
+      ok: { text: so.text }
+    }])
+  });
+}
+
+/* ------------------------------------------------------------
+   阴影从 4 起开始夺走温和的选项
+   被夺走的不删除：划掉、留在原位，让人看见自己少了一种可能。
+   判定只用 seed + 事件 id + 层数，同种子完全可复现，不用真随机。
+   ------------------------------------------------------------ */
+function isGentle(o){
+  if(!o || o.free || o.final || o.shadowOpt || o.need || o.reframe || o.taken) return false;
+  if(o.gentle) return true;
+  const s = String(o.label || '');
+  return GENTLE_HINTS.some(h => s.indexOf(h) >= 0);
+}
+
+function shadowTakeCount(){
+  const s = G ? (G.shadow || 0) : 0;
+  if(s >= 7) return 99;
+  if(s >= 6) return 2;
+  if(s >= 4) return 1;
+  return 0;
+}
+
+function takeGentleOptions(ev){
+  if(!G || !ev || !ev.options) return ev;
+  const want = shadowTakeCount();
+  if(!want) return ev;
+  /* 启程 / 抵达 / 结果页 / 夜话不参与 */
+  if(String(ev.id).indexOf('__') === 0 || String(ev.id).indexOf('r_L') === 0) return ev;
+  if(ev.group === 'solitude') return ev;
+
+  const cands = [];
+  ev.options.forEach((o,i)=>{ if(isGentle(o)) cands.push(i); });
+  if(!cands.length) return ev;
+
+  /* 保底：夺走之后至少还有 2 个能点的选项（凭证不足的按钮不算可点） */
+  const clickable = ev.options.filter(o => !(o.need && !hasNeed(o.need))).length;
+  const quota = Math.min(want, Math.max(0, clickable - 2), cands.length);
+  if(quota <= 0) return ev;
+
+  const rnd = mulberry32(hashStr(G.seed + '|take|' + ev.id + '|' + G.layer));
+  const pick = cands.slice();
+  for(let i = pick.length - 1; i > 0; i--){
+    const j = Math.floor(rnd() * (i + 1));
+    const t = pick[i]; pick[i] = pick[j]; pick[j] = t;
+  }
+  const taken = pick.slice(0, quota);
+  const line = TAKE_LINES[Math.min(TAKE_LINES.length - 1, Math.max(0, Math.floor((G.shadow - 4) / 2)))];
+  return Object.assign({}, ev, {
+    options: ev.options.map((o,i) => taken.indexOf(i) >= 0 ? Object.assign({}, o, { taken:true }) : o),
+    takenLine: line
+  });
 }
 
 /* 代价成功：抽一条代价 */
@@ -3335,6 +3756,7 @@ function applyCost(){
     const it = ITEMS[gone.id];
     out.text = '你确实做到了。但' + (it ? it.name : '那件东西') + '不在你手里了。';
     out.fx.push({ k:'丢失', v: it ? it.name : gone.id });
+    pushEcho({ t:'loot', name: it ? it.name : gone.id });
   } else if(key === 'gear'){
     const slots = SLOT_ORDER.filter(s=>G.equipped[s]);
     if(!slots.length) return null;
@@ -3346,11 +3768,13 @@ function applyCost(){
       META.armory[id] = plus - 1;
       out.text = (it ? it.name : '手里的东西') + '裂了一道口子。还能用，但不如从前。';
       out.fx.push({ k:'受损', v:(it?it.name:id) + ' +' + plus + '→+' + (plus-1) });
+      pushEcho({ t:'gear', kind:'chip', name: it ? it.name : id, plus: plus });
     } else {
       delete META.armory[id];
       delete G.equipped[slot];
       out.text = (it ? it.name : '手里的东西') + '断了。你把它留在了原地。';
       out.fx.push({ k:'毁坏', v: it ? it.name : id });
+      pushEcho({ t:'gear', kind:'break', name: it ? it.name : id });
     }
     recalc(); saveMeta(META);
   } else if(key === 'shadow'){
@@ -3605,7 +4029,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.2</div>
+    <div class="eyebrow">文字跑团 · v0.3</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十二程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -4165,10 +4589,13 @@ function enterNode(id){
     G.groupCount = G.groupCount || {};
     G.groupCount[ev.group] = (G.groupCount[ev.group] || 0) + 1;
   }
-  injectShadowOptions(ev);
+  /* 地区版 → 暗选项 → 夺走温和选项 → 阴影改写。
+     全程走副本，EVENTS 里的原始事件一次也不改。 */
+  let view = regionVariant(ev, node.region);
+  view = injectShadowOptions(view);
+  view = takeGentleOptions(view);
   G.screen = 'event';
-  /* 阴影够深时，同一场景换一种语气；拷贝一份，不改事件数据本身 */
-  G.event = shadowVariant(ev);
+  G.event = shadowVariant(view);
   G.pending = null;
   render();
 }
@@ -4183,7 +4610,8 @@ function dcHint(chk){
   if(!chk) return '';
   const dc = effDC(chk.dc);
   let base = G.attrs[chk.attr];
-  if(G.hero.rule === 'rider' && chk.attr === 'valor' && !G.riderUsed){ G.riderUsed = true; base += 2; }
+  /* 这里只预测加成，不消费：真正消费发生在 chooseOption 进入检定时 */
+  if(G.hero.rule === 'rider' && chk.attr === 'valor' && !G.riderUsed) base += 2;
   const p = Math.max(5, Math.min(95, Math.round((21 - (dc - base)) / 20 * 100)));
   if(G.rules && G.rules.dcPreview) return `DC ${dc} · ${ATTRS[chk.attr]} · 约 ${p}%`;
   return `DC ${dc} · ${ATTRS[chk.attr]}`;
@@ -4191,11 +4619,13 @@ function dcHint(chk){
 
 function renderEvent(){
   const ev = G.event;
-  const hasCheck = ev.options.some(o=>o.check);
+  const hasCheck = ev.options.some(o=>o.check && !o.taken);
   const opts = ev.options.map((o,i)=>{
+    const taken = !!o.taken;
     const locked = !!(o.need && !hasNeed(o.need));
     let hint;
-    if(locked) hint = needLabel(o.need);
+    if(taken) hint = '想不起来了';
+    else if(locked) hint = needLabel(o.need);
     else if(o.need && hasNeed(o.need)) hint = needHave(o.need);
     else if(o.auto) hint = '直接可行';
     else if(o.shadowOpt) hint = '不必检定';
@@ -4205,8 +4635,9 @@ function renderEvent(){
     if(o.shadowOpt) cls.push('shadow-opt');
     if(locked) cls.push('locked-opt');
     if(o.auto) cls.push('auto-opt');
-    const mark = o.shadowOpt ? '※' : (o.auto ? '·' : (i+1));
-    return `<button class="${cls.join(' ')}" data-i="${i}" ${locked?'disabled':''}>
+    if(taken) cls.push('taken-opt');
+    const mark = taken ? '×' : (o.shadowOpt ? '※' : (o.auto ? '·' : (i+1)));
+    return `<button class="${cls.join(' ')}" data-i="${i}" ${(locked||taken)?'disabled':''}>
       <span class="idx">${mark}</span>
       <span class="lbl">${o.label}</span>
       <span class="dc">${hint}</span>
@@ -4230,6 +4661,7 @@ function renderEvent(){
       ${fxHtml}
       ${ev.costInfo ? `<div class="costbox"><div class="ck">代价</div><div class="ct">${esc(ev.costInfo.text)}</div></div>` : ''}
       <div class="opts">${opts}</div>
+      ${ev.takenLine ? `<p class="taken-note">${esc(ev.takenLine)}</p>` : ''}
       ${hasCheck && G.resolve > 0 ? `<p class="note">你还有 ${G.resolve} 点决心。检定失败时可以花 1 点重掷。</p>` : ''}
     </div>`;
 
@@ -4239,19 +4671,29 @@ function renderEvent(){
 }
 
 function chooseOption(o){
-  if(o.need && !hasNeed(o.need)) return;
-  if(o.check){ G.pending = { opt:o }; G.screen = 'check'; render(); return; }
+  if(o.taken || (o.need && !hasNeed(o.need))) return;
+  if(o.check){
+    /* 骑手「一鼓作气」在进入检定时消费一次；重掷不会把加成弄丢 */
+    let bonus = 0;
+    if(G.hero.rule === 'rider' && o.check.attr === 'valor' && !G.riderUsed){
+      G.riderUsed = true; bonus = 2;
+    }
+    G.pending = { opt:o, riderBonus:bonus };
+    G.screen = 'check'; render(); return;
+  }
   if(o.final) return endRun(G.hp > 0 ? 'win' : 'dead');
   if(o.free){ addLog(G.event.title); G.screen = 'map'; render(); return; }
 
   if(o.vow){
     G.vow = { type:o.vow, at:G.layer };
     addLog('你立了誓。');
+    pushEcho({ t:'vow' });
   }
   if(o.consume === 'token' && o.need && o.need.token){
     G.tokens = (G.tokens||[]).filter(t=>t.id !== o.need.token);
   }
   const changes = applyFx(o.fx, { camp: G.event.type === 'camp' });
+  if(o.fx && o.fx.flag && o.fx.flag.letter_home) pushEcho({ t:'letter' });
   if(o.chain) G.chain = o.chain;
   addLog(G.event.title + ' · ' + o.label);
   if(o.reframe && applyReframe(o.reframe)) return;
@@ -4271,8 +4713,8 @@ function renderCheck(){
   const o = G.pending.opt;
   const chk = o.check;
   const dc = effDC(chk.dc);
-  let base = G.attrs[chk.attr];
-  if(G.hero.rule === 'rider' && chk.attr === 'valor' && !G.riderUsed){ G.riderUsed = true; base += 2; }
+  /* 加成在 chooseOption 里定好并存进 pending，重掷时保持一致 */
+  let base = G.attrs[chk.attr] + ((G.pending && G.pending.riderBonus) || 0);
 
   app.innerHTML = topbar() + statbar() + `
     <div class="card event">
@@ -4376,6 +4818,7 @@ function settleCheck(tier, traitNote){
   const ok = (tier === 'crit' || tier === 'clean' || tier === 'cost');
   const o = G.pending.opt;
   const branch = (ok ? o.ok : o.no) || {};
+  if(!ok) pushEcho({ t:'fail', title:G.event.title, label:o.label });
 
   /* 武勇：再起 */
   if(!ok && G.rules && G.rules.stand && !G.standUsed && G.hp <= 0){
@@ -4433,6 +4876,58 @@ function settleCheck(tier, traitNote){
   render();
 }
 
+/* ---------- 结算回响 ---------- */
+/* 不写战报，只把这一局散落的东西轻轻放回原位。
+   每一句都必须来自真实埋点；没发生过的事不写，凑不够也不硬凑。 */
+function buildEcho(kind, reached){
+  const es = Array.isArray(G.echoes) ? G.echoes : [];
+  const of = t => es.filter(e => e.t === t);
+  const fails = of('fail');
+  const stages = of('stage');
+  const breaks = of('gear').concat(of('loot'));
+  const letter = of('letter')[0];
+  const vow = of('vow')[0];
+  const lastFail = fails[fails.length - 1];
+  const lastStage = stages[stages.length - 1];
+  const firstBreak = breaks[0];
+  const paras = [];
+  let usedFail = false, usedStage = false;
+
+  /* 第一段：这一局怎么收的尾 */
+  if(kind === 'dead' && lastFail){
+    paras.push('第 ' + lastFail.layer + ' 程，「' + lastFail.title + '」。你试过「' + lastFail.label + '」，没成。\n\n那之后你没有再试第二次。');
+    usedFail = true;
+  } else if(kind === 'shadow' && lastStage){
+    paras.push('「' + lastStage.name + '」那天，你还在走。之后也一直在走。');
+    usedStage = true;
+  } else if(kind === 'retreat'){
+    paras.push('回头是在第 ' + reached + ' 程决定的。来时的路你刚走过一遍。');
+  } else if(kind === 'win'){
+    paras.push('第 ' + reached + ' 程走完了。最后一段路上你没有再回头。');
+  } else {
+    paras.push('最后几程没有遇到需要掷骰的事。');
+  }
+
+  /* 第二段起：这一局独有的痕迹，按分量取两条 */
+  const pool = [];
+  if(letter && kind !== 'win') pool.push('内袋里那半页纸还在。上面的名字你到现在还写得出来。');
+  if(firstBreak) pool.push('「' + firstBreak.name + '」是第 ' + firstBreak.layer + ' 程坏的。碎的时候你没有停。');
+  if(vow) pool.push('第 ' + vow.layer + ' 程你立过誓。要走到的地方还在前面。');
+  if(lastFail && !usedFail) pool.push('第 ' + lastFail.layer + ' 程那次没成的事，后来也没有再补上。');
+  if(lastStage && !usedStage) pool.push('「' + lastStage.name + '」那天之后，你回头看的次数变少了。');
+  pool.slice(0, 2).forEach(p => paras.push(p));
+
+  if(paras.length < 2) paras.push('这一程没有碎过什么东西。');
+
+  const tail = {
+    dead: '路是从夏尔那头数过来的，数到第 ' + reached + ' 程停了。',
+    shadow: '到了这里，你已经不需要决定什么了。',
+    retreat: '回去会快一些。你没有数还剩多少路。'
+  };
+  if(tail[kind]) paras.push(tail[kind]);
+  return paras.slice(0, 4).join('\n\n');
+}
+
 /* ---------- 结算 ---------- */
 function endRun(kind){
   if(G.shadow >= SHADOW_MAX && kind !== 'dead') kind = 'shadow';
@@ -4485,7 +4980,7 @@ function endRun(kind){
   const lost = (kind === 'dead' || kind === 'shadow')
     ? G.loot.slice(0, Math.max(0, G.loot.length - kept.length))
     : [];
-  G.over = { kind, reached, renown, mats, kept, added, lost };
+  G.over = { kind, reached, renown, mats, kept, added, lost, echo: buildEcho(kind, reached) };
   G.screen = 'result';
   clearRun();
   render();
@@ -4515,12 +5010,18 @@ function renderResult(){
        }).join('')}</div>`
     : '';
 
+  const echoHtml = o.echo
+    ? `<div class="card echo-card"><div class="ek">回响</div><div class="prose">${String(o.echo).split('\n').filter(x=>x.trim()).map(p=>`<p>${esc(p)}</p>`).join('')}</div></div>`
+    : '';
+
   app.innerHTML = topbar() + `
     <div class="card pad" style="text-align:center;padding-top:32px">
       <div style="font-size:11px;letter-spacing:.18em;color:var(--gold);margin-bottom:9px">远征结束</div>
       <h1 style="font-size:26px">${titles[o.kind]}</h1>
       <p class="prose" style="margin-top:12px;font-size:15px">${lines[o.kind]}</p>
     </div>
+
+    ${echoHtml}
 
     <div class="summary">
       <div><div class="k">抵达</div><div class="v">第 ${o.reached} / ${TOTAL_LAYERS} 程</div></div>
@@ -4612,7 +5113,10 @@ function clearRun(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
       if(ev){
         G.tokens = [{ id:'ferry_rope', name:TOKENS.ferry_rope.name, note:'' }];
         if(q.get('shadow')) G.shadow = +q.get('shadow');
-        G.event = shadowVariant(ev);
+        let view = regionVariant(ev, layerRegion(G.layer));
+        view = injectShadowOptions(view);
+        view = takeGentleOptions(view);
+        G.event = shadowVariant(view);
         G.screen = 'event'; render();
       }
     }
@@ -4630,12 +5134,28 @@ function clearRun(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
       if(enc){
         G.at = enc.id; G.layer = enc.layer;
         const ev = pickEvent(enc);
-        if(ev){ injectShadowOptions(ev); G.event = ev; G.screen = 'event'; render(); }
+        if(ev){
+          let view = injectShadowOptions(ev);
+          view = takeGentleOptions(view);
+          G.event = shadowVariant(view);
+          G.screen = 'event'; render();
+        }
       }
     }
-  } else {
-    renderTitle();
+    /* URL 调试入口已经开好局，不必再恢复存档 */
+    return;
   }
+
+  /* 刷新 / 切后台回来：接上没走完的那一局。
+     endRun 会 clearRun，所以存档里只可能是进行中的局；旧档没有 echoes，补上空数组。 */
+  const saved = loadRun();
+  if(saved && !saved.over && saved.map && saved.map.index){
+    G = saved;
+    if(!Array.isArray(G.echoes)) G.echoes = [];
+    render();
+    return;
+  }
+  renderTitle();
 })();
 
 </script>
