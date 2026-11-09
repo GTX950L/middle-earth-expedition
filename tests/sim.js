@@ -3,7 +3,7 @@
    用法：node tests/sim.js
    零依赖。把 index.html 里的 <script> 抽出来放进 mock DOM 里跑：
    1) 数据完整性  2) 阴影机制  3) 规则接线  4) 刷新恢复  5) 可复现性  6) 300 局模拟
-   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 装备带回  11) 私事主线  12) 同行者  13) 产物。
+   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 装备带回  11) 私事主线  12) 同行者  13) 路上的闲事  14) 产物。
    不启动浏览器，不写网络，不改仓库文件。
    平衡曲线（各难度通关率是否单调）另见 tests/diag.js。 */
 
@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.8，能完整玩通。', '版本号']
+    ['v0.9，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -575,7 +575,7 @@ function fakeTier(G, o) {
 }
 
 const stats = { steps: 0, takenSeen: 0, regionSeen: 0, echoOK: 0, kinds: {}, echoes: new Set(), echoTypes: new Set(),
-  steadyUsed: 0, shadowEnd: 0, resistUsed: 0 };
+  steadyUsed: 0, shadowEnd: 0, resistUsed: 0, idleSeen: 0 };
 
 function runOne(heroId, tierId, seed, wantTrace) {
   vm.runInContext('META = defaultMeta()', ctx);
@@ -583,7 +583,7 @@ function runOne(heroId, tierId, seed, wantTrace) {
   const trace = [];
   F.newGame(heroId, tierId, seed);
   let G = getG();
-  let steps = 0;
+  let steps = 0, idleCount = 0;
 
   while (!G.over && steps++ < 400) {
     if (G.screen === 'map') {
@@ -603,6 +603,7 @@ function runOne(heroId, tierId, seed, wantTrace) {
         trace.push(ev.id);
         if (ev.options.some(o => o.taken)) stats.takenSeen++;
         if (ev.text && ev.text.indexOf('车辙') >= 0) stats.regionSeen++;
+        if (/^idle_/.test(ev.id)) { idleCount++; stats.idleSeen++; }
         const totalClickable = ev.options.filter(o => !(o.need && !F.hasNeed(o.need))).length;
         const clickable = ev.options.filter(o => !o.taken && !(o.need && !F.hasNeed(o.need)));
         /* 保底是「至少留 2 个」；有些重构后的障碍事件原本就只有 1 个可点，别误判 */
@@ -633,6 +634,7 @@ function runOne(heroId, tierId, seed, wantTrace) {
     checkState(G, seed + ' 第 ' + steps + ' 步');
   }
   if (steps >= 400) fail('未能结束：' + seed);
+  if (idleCount > 2) fail('一局里出现 ' + idleCount + ' 件闲事，超过每局上限：' + seed);
   if (!G.over) { F.endRun('dead'); G = getG(); }
 
   stats.steps += steps;
@@ -670,7 +672,7 @@ section('⑥ 300 局自动模拟');
   const tiers = TIERS.map(t => t.id);
   stats.echoOK = 0; stats.kinds = {}; stats.echoes.clear(); stats.steps = 0;
   stats.takenSeen = 0; stats.regionSeen = 0; stats.echoTypes.clear();
-  stats.steadyUsed = 0; stats.shadowEnd = 0; stats.resistUsed = 0;
+  stats.steadyUsed = 0; stats.shadowEnd = 0; stats.resistUsed = 0; stats.idleSeen = 0;
   const t0 = Date.now();
   for (let i = 0; i < 300; i++) {
     runOne(heroes[i % heroes.length], tiers[(i * 7) % tiers.length], 'SIM-' + i, false);
@@ -684,6 +686,8 @@ section('⑥ 300 局自动模拟');
   if (!stats.echoTypes.has('thread')) fail('300 局里「这一趟的私事」一次都没推进过，主线可能被断开');
   if (!stats.echoTypes.has('companion')) fail('300 局里一次都没遇上同行者，相遇事件可能被断开');
   ok('回响埋点实际覆盖 ' + stats.echoTypes.size + ' 类：' + Array.from(stats.echoTypes).sort().join(' / '));
+  if (stats.idleSeen < 40) fail('300 局里闲事只出现 ' + stats.idleSeen + ' 次，可能没进池');
+  ok('300 局里闲事出现 ' + stats.idleSeen + ' 次，单局从未超过 2 件');
 }
 
 section('⑦ 渲染结构');
@@ -777,7 +781,8 @@ section('⑧ 内容扩容与回响埋点');
     '独白':      e => e.group === 'solitude',
     '阴影专用':  e => /^any_shadow_/.test(e.id),
     '多解障碍':  e => /^gate_(chain|wall)/.test(e.id),
-    '凭证事件':  e => /^token_/.test(e.id)
+    '凭证事件':  e => /^token_/.test(e.id),
+    '路上的闲事': e => e.group === 'idle'
   };
   let neutralCount = 0;
   for (const [name, pred] of Object.entries(groups)) {
@@ -789,7 +794,7 @@ section('⑧ 内容扩容与回响埋点');
   const anyCount = EVENTS.filter(e => e.region === 'any').length;
   if (keys.length + neutralCount !== anyCount) fail('通用池分类不闭合：' + keys.length + ' + ' + neutralCount + ' ≠ ' + anyCount);
   ok('地区版 ' + keys.length + ' 条 × 3 = ' + keys.length * 3 + ' 段；其余 ' + neutralCount +
-     ' 条按设计保持中性（独白 / 阴影 / 多解障碍 / 凭证），分类闭合');
+     ' 条按设计不写地区版（独白 / 阴影 / 多解障碍 / 凭证 / 闲事），分类闭合');
 
   /* 新补的 3 条地区版：三地正文确实不同，且原事件不被改写 */
   const probe = EVENTS.find(e => e.id === 'any_cleanse_water');
@@ -1391,7 +1396,39 @@ section('⑭ 有个人跟你走了一段');
   ok('没有同伴时：不加条、不注入、不报错');
 }
 
-section('⑮ 产物');
+/* ---------- 15. 路上的闲事 ---------- */
+section('⑮ 路上有些不必赢也不必输的事');
+{
+  const idles = EVENTS.filter(e => e.group === 'idle');
+  if (idles.length !== 12) fail('闲事应有 12 条，实际 ' + idles.length);
+  const neg = o => {
+    const f = o.fx || {};
+    return ['hp','supply','resolve'].some(k => (f[k] || 0) < 0);
+  };
+  for (const e of idles) {
+    if (e.groupMax !== 2) fail(e.id + ' 的每局上限不是 2');
+    if (e.options.length !== 2) fail(e.id + ' 不是两个选项');
+    if (e.options.some(o => o.check)) fail(e.id + ' 不该掷骰');
+    if (e.options.some(o => !o.ok || !o.ok.text)) fail(e.id + ' 缺结果文本');
+    if (e.options.every(neg)) fail(e.id + ' 没有一条不吃亏的路');
+    if (e.options.some(o => (o.fx || {}).shadow > 0)) fail(e.id + ' 闲事不该加阴影');
+    if (!TEXTS[e.id] || !TEXTS[e.id].opts || TEXTS[e.id].opts.length !== e.options.length)
+      fail(e.id + ' 的正式叙事与选项数不对齐');
+  }
+  const tails = idles.filter(e => SHADOW_TAIL[e.id]);
+  if (tails.length !== 3) fail('闲事阴影注脚应有 3 条，实际 ' + tails.length);
+
+  /* 阴影注脚只追加，不改正文，也不额外扣东西 */
+  vm.runInContext('G = {shadow:0, seed:"idle", layer:0, tokens:[], flags:{}, echoes:[]}', ctx);
+  const low = call('shadowVariant', idles[0]).text;
+  vm.runInContext('G.shadow = 5', ctx);
+  const high = call('shadowVariant', idles[0]).text;
+  if (!high.startsWith(low) || high.length <= low.length) fail('阴影注脚没有追加在正文之后');
+  vm.runInContext('G.shadow = 0', ctx);
+  ok('12 条闲事：两个选项、不掷骰、至少一条不吃亏、3 条阴影注脚只追加不改正文');
+}
+
+section('⑯ 产物');
 ok('index.html ' + (fs.statSync(HTML_PATH).size / 1024).toFixed(1) + ' KB / ' + html.split('\n').length + ' 行');
 ok('总层数 ' + TOTAL_LAYERS + '，装备 ' + Object.keys(ITEMS).length + ' 件，出身 ' + HEROES.length + ' 个，难度 ' + TIERS.length + ' 档');
 

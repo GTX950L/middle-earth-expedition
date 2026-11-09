@@ -2309,6 +2309,94 @@ const EVENTS = [
         ok:{ text:'等到风停，没有人回来。你走的时候，压痕还在。', fx:{resolve:1,renown:1} },
         no:{ text:'风越来越大，你先低下了头。再抬起来时，那块草已经看不出来了。', fx:{resolve:-1} } },
       { label:'不看，从坡下绕过去', gentle:true, fx:{supply:-1}, ok:{ text:'坡下多走了半天。山脊一直在左侧，你没有再往上瞧。' } }
+    ] },
+
+  /* ==================== 路上的闲事 ====================
+     一局里不必每一件事都在要资源、加阴影。这些事不掷骰、不推送主线，
+     只让路像一条真的路：有人经过，有东西长着，有一顿饭煮糊了。
+     每局最多两件，不挤掉正事。 */
+  { id:'idle_dog', region:'shire', type:'story', weight:11, group:'idle', groupMax:2, title:'跟着你的狗',
+    text:'一条黄狗从篱笆后头钻出来，跟在你后面走。你停下，它也停下，坐下来看你。\n\n它不吃你的干粮，也不走。',
+    options:[
+      { label:'蹲下来，让它闻闻你的手', fx:{resolve:1}, ok:{ text:'它闻了很久，然后把手舔湿了。你站起来时，它已经开始往前走了，像是它本来就要去那边。' } },
+      { label:'继续走，让它跟着', fx:{}, ok:{ text:'它跟了半里路，在一个岔口停下来，看着你走远。' } }
+    ] },
+
+  { id:'idle_bird', region:'shire', type:'story', weight:10, group:'idle', groupMax:2, title:'学人说话的鸟',
+    text:'一只黑鸟落在篱笆上，歪着头看你。你说了一声「走吧」。\n\n它说了一声「走吧」。声音和你一模一样。',
+    options:[
+      { label:'再说一句别的', fx:{resolve:1}, ok:{ text:'你说「今天天气不错」。它想了很久，说「走吧」。' } },
+      { label:'不说了，走你的', fx:{}, ok:{ text:'你走出去很远，听见后面又说了一声「走吧」。' } }
+    ] },
+
+  { id:'idle_sheep', region:'shire', type:'story', weight:10, group:'idle', groupMax:2, title:'不肯过桥的羊',
+    text:'一只羊站在桥中间，不肯往前走，也不肯退。赶羊的人在你前面，骂了很久。\n\n羊看着他，开始反刍。',
+    options:[
+      { label:'绕到羊后面，轻轻推一把', fx:{resolve:1}, ok:{ text:'羊往前走了两步，又停下。赶羊的人说，算了，它想站就站着吧。' } },
+      { label:'站在桥头等', fx:{supply:1}, ok:{ text:'赶羊的人等急了，从袋子里摸出一个苹果给你，说他先绕路。' } }
+    ] },
+
+  { id:'idle_shoes', region:'bree', type:'story', weight:9, group:'idle', groupMax:2, title:'路边的鞋',
+    text:'一双鞋整整齐齐放在路边，鞋尖朝着东。鞋底磨得很薄，鞋带系着。\n\n附近没有脚印。',
+    options:[
+      { label:'把干粮分一点放在鞋边', fx:{supply:-1, resolve:2}, ok:{ text:'你把半块饼放在两只鞋中间，摆正了。走出去很远，你还想着鞋尖朝东这件事。' } },
+      { label:'不去动它', fx:{}, ok:{ text:'你从鞋边走过去。风把一只鞋吹得歪了一点。' } }
+    ] },
+
+  { id:'idle_stone', region:'wild', type:'story', weight:9, group:'idle', groupMax:2, title:'像脸的石头',
+    text:'路边一块石头，被风磨出了一个凹坑。从某个角度看，像一张侧脸。\n\n你换了个角度，就不像了。',
+    options:[
+      { label:'站回刚才那个角度', fx:{resolve:1}, ok:{ text:'又像了。你看了一会儿，觉得那张脸有点不耐烦。' } },
+      { label:'不看了，继续走', fx:{}, ok:{ text:'走出很远，你还记得那个凹坑的位置。' } }
+    ] },
+
+  { id:'idle_rain', region:'wild', type:'camp', weight:9, group:'idle', groupMax:2, title:'雨停了',
+    text:'雨下了半日，忽然停了。云裂开一道，光正好落在前面的石头上。\n\n石头是干的，别处还在滴水。',
+    options:[
+      { label:'坐在那块石头上，等衣服干', fx:{hp:1, resolve:1}, ok:{ text:'石头是暖的。你坐了一会儿，衣服没干，但人缓过来了。' } },
+      { label:'趁着雨停多走一段', fx:{supply:1}, ok:{ text:'路比刚才好走。你走出很远，回头时那块石头已经不亮了。' } }
+    ] },
+
+  { id:'idle_song', region:'any', type:'camp', weight:11, group:'idle', groupMax:2, title:'火边的歌',
+    text:'火边有人在小声唱。你听不懂词，调子却很好记，来回就那么两句。\n\n唱的人没有看你，也没有停。',
+    options:[
+      { label:'听完这一遍', fx:{resolve:1}, ok:{ text:'他唱完，往火里添了一根柴，没有再唱。调子留在你脑子里，走了很久还在。' } },
+      { label:'跟着哼一句', fx:{resolve:1}, ok:{ text:'你哼得不准。他侧过头听了一下，笑了一声，没有纠正。' } }
+    ] },
+
+  { id:'idle_porridge', region:'any', type:'camp', weight:10, group:'idle', groupMax:2, title:'煮糊了的粥',
+    text:'粥煮糊了。锅底结了一层，刮起来是黑的。\n\n你记得刚才只是走开了一小会儿。',
+    options:[
+      { label:'把上面没糊的盛出来', fx:{supply:1}, ok:{ text:'上面那层还能吃。你吃了一半，另一半留着明天。' } },
+      { label:'重新煮一锅', fx:{}, ok:{ text:'你把锅刷了，重新架上。这次你一直守在旁边，没有走开。' } }
+    ] },
+
+  { id:'idle_stars', region:'any', type:'camp', weight:10, group:'idle', groupMax:2, title:'数星星',
+    text:'天晴了。你仰面躺着，开始数。数到三十几的时候，忘了数到哪。\n\n你重新开始，又忘了。',
+    options:[
+      { label:'干脆不数了，就看着', fx:{resolve:1}, ok:{ text:'看着看着，你发现自己已经很久没有想别的事。' } },
+      { label:'从头再数一遍', fx:{resolve:1}, ok:{ text:'这次数到五十几。你没有再数第三遍。' } }
+    ] },
+
+  { id:'idle_storyswap', region:'any', type:'camp', weight:9, group:'idle', groupMax:2, title:'换一个故事',
+    text:'火边的人说，他用一个故事换你一点干粮。你说你的干粮不多。\n\n他说那就换半个。',
+    options:[
+      { label:'换', fx:{supply:-1, resolve:2}, ok:{ text:'他讲了一个很短的故事，讲完你笑了。你很久没有笑过。' } },
+      { label:'不换，听他自己讲', fx:{}, ok:{ text:'他点点头，自己讲了起来，讲给火听。' } }
+    ] },
+
+  { id:'idle_button', region:'any', type:'story', weight:10, group:'idle', groupMax:2, title:'补一个扣子',
+    text:'你的外衣掉了一个扣子，风从那里灌进来。你在路边坐下来，找出一截线。\n\n线比扣眼粗，穿了很久才穿过去。',
+    options:[
+      { label:'慢慢补好', fx:{resolve:1}, ok:{ text:'补完的扣子有点歪。你扣上，风不往里灌了。' } },
+      { label:'不补了，把衣襟掖进去', fx:{}, ok:{ text:'掖进去的衣襟走两步就松了。你又掖了一次。' } }
+    ] },
+
+  { id:'idle_apple', region:'any', type:'story', weight:10, group:'idle', groupMax:2, title:'一把晒干的苹果',
+    text:'路边的老太太叫住你，塞给你一把晒干的苹果片。她说她晒多了。\n\n苹果片很硬，嚼起来费牙。',
+    options:[
+      { label:'收下，道谢', fx:{supply:1}, ok:{ text:'你嚼了一片，很甜，甜得有点意外。' } },
+      { label:'说不用了', fx:{resolve:1}, ok:{ text:'她收回手，自己嚼了一片，说那就算了。' } }
     ] }
 ];
 
@@ -2415,6 +2503,11 @@ const SHADOW_TAIL = {
   bree_scale: '砝码少一个。秤杆平着，这很对。',
   wild_box: '蜡是新的，盒身是旧的。你没有觉得这两件事放在一起有什么不对。',
   wild_lee: '柴码了四层。你把它们照原样码回去，手不用想就知道该怎么码。',
+
+  /* ---------- v0.8 · 闲事也会变味 ---------- */
+  idle_dog: '它跟了你很久。你不确定它跟的是你，还是你身上那股味道。',
+  idle_song: '调子很好记。你后来发现，你只记得那两句，反复地记着。',
+  idle_stars: '你数着数着，发现自己在数别的东西。',
 
   /* ---------- v0.3 新增 ---------- */
   shire_milk: '罐子还在门口。你没有想是谁放在那儿的。',
@@ -3936,6 +4029,115 @@ TEXTS.wild_ridge = {
   ]
 };
 
+/* 路上的闲事：只有 ok，没有 no —— 这些事不该失败，也不该扣人 */
+TEXTS.idle_dog = {
+  title: '跟着你的狗',
+  text: '一条黄狗从篱笆后头钻出来。它没有叫，也没有靠近，只是跟在你后面，隔了七八步。\n\n你停下，它也停下，坐下来看你。它的左耳有一道旧口子，毛在那儿长不齐。\n\n它不吃你的干粮。你把饼掰了一块丢过去，它低头闻了闻，没动。',
+  opts: [
+    { ok: '你蹲下来，把手伸出去。它走过来，从指根闻到手腕，闻了很久。然后它把手舔湿了。\n\n你站起来的时候，它已经开始往前走了，走两步回头看你一眼，像是它本来就要去那边。' },
+    { ok: '它跟了半里路。到岔口的时候停下来，坐在路边，看着你走远。\n\n你回头看过一次，它还在那儿坐着。' }
+  ]
+};
+
+TEXTS.idle_bird = {
+  title: '学人说话的鸟',
+  text: '一只黑鸟落在篱笆上，歪着头看你。它不怕人，你走近两步，它也没有飞。\n\n你说了一声「走吧」。\n\n它说了一声「走吧」。声音和你一模一样，连尾音往上挑的那一点都一样。',
+  opts: [
+    { ok: '你说「今天天气不错」。它想了很久，久到你以为它不会说了。\n\n然后它说「走吧」。' },
+    { ok: '你走出去很远，听见后面又说了一声「走吧」。\n\n你没有回头。' }
+  ]
+};
+
+TEXTS.idle_sheep = {
+  title: '不肯过桥的羊',
+  text: '一只羊站在桥中间，不肯往前走，也不肯退。赶羊的人在你前面，骂了很久，嗓子都哑了。\n\n羊看着他，开始反刍。\n\n桥很窄，人和羊只能过去一个。',
+  opts: [
+    { ok: '你绕到羊后面，两只手推它的后胯。它往前走了两步，又停下。\n\n赶羊的人说，算了，它想站就站着吧。他从桥边挤过去，羊没动。' },
+    { ok: '你站在桥头等。赶羊的人等急了，从袋子里摸出一个苹果给你，说他先绕路。\n\n他走了以后，羊又站了一会儿，自己过桥了。' }
+  ]
+};
+
+TEXTS.idle_shoes = {
+  title: '路边的鞋',
+  text: '一双鞋整整齐齐放在路边，鞋尖朝着东。鞋底磨得很薄，左脚那只补过一块，补丁的线脚已经发白。\n\n鞋带系着，系得很整齐。\n\n附近没有脚印。这几天没有下过雨，土是干的。',
+  opts: [
+    { ok: '你把半块饼放在两只鞋中间，摆正了。\n\n走出去很远，你还想着鞋尖朝东这件事。' },
+    { ok: '你从鞋边走过去。风把一只鞋吹得歪了一点。\n\n你没有回去扶。' }
+  ]
+};
+
+TEXTS.idle_stone = {
+  title: '像脸的石头',
+  text: '路边一块石头，被风磨出了一个凹坑。从某个角度看，像一张侧脸：额头、鼻梁、收进去的嘴。\n\n你换了个角度，就不像了。\n\n石头在那儿不知道多少年了。风把它磨成这样，也把他磨成这样。',
+  opts: [
+    { ok: '你退回去，站回刚才那个角度。又像了。\n\n你看了一会儿，觉得那张脸有点不耐烦。' },
+    { ok: '你继续走。走出很远，还记得那个凹坑的位置，和要站在哪儿才看得见。' }
+  ]
+};
+
+TEXTS.idle_rain = {
+  title: '雨停了',
+  text: '雨下了半日，忽然停了。停得很干脆，像有人把水关了。\n\n云裂开一道，光正好落在前面那块石头上。石头是干的，别处还在滴水。',
+  opts: [
+    { ok: '你在那块石头上坐下。石头是暖的。\n\n衣服没干，但人缓过来了。' },
+    { ok: '你趁着雨停多走一段。路比刚才好走，泥不粘鞋。\n\n走出很远，回头时那块石头已经不亮了。' }
+  ]
+};
+
+TEXTS.idle_song = {
+  title: '火边的歌',
+  text: '火边有人在小声唱。你听不懂词，调子却很好记，来回就那么两句，第二句比第一句低一点。\n\n唱的人没有看你，也没有停。他唱到第三遍的时候，你发现自己已经在等第二句了。',
+  opts: [
+    { ok: '他唱完，往火里添了一根柴，没有再唱。\n\n调子留在你脑子里，走了很久还在。' },
+    { ok: '你跟着哼了一句，哼得不准。\n\n他侧过头听了一下，笑了一声，没有纠正。' }
+  ]
+};
+
+TEXTS.idle_porridge = {
+  title: '煮糊了的粥',
+  text: '粥煮糊了。锅底结了一层，刮起来是黑的，刮的时候声音很难听。\n\n你记得刚才只是走开了一小会儿，去看了一眼来路。\n\n上面那层还能吃。',
+  opts: [
+    { ok: '你把上面没糊的盛出来。还能吃。\n\n你吃了一半，另一半留着明天。' },
+    { ok: '你把锅刷了，重新架上。这次你一直守在旁边，没有走开。\n\n粥煮好的时候，天已经黑透了。' }
+  ]
+};
+
+TEXTS.idle_stars = {
+  title: '数星星',
+  text: '天晴了。你仰面躺着，开始数。\n\n数到三十几的时候，忘了数到哪。你重新开始，数到二十几，又忘了。\n\n星星不管你怎么数，都在原来的地方。',
+  opts: [
+    { ok: '你干脆不数了，就看着。\n\n看着看着，你发现自己已经很久没有想别的事。' },
+    { ok: '你从头又数了一遍，这次数到五十几。\n\n你没有再数第三遍。' }
+  ]
+};
+
+TEXTS.idle_storyswap = {
+  title: '换一个故事',
+  text: '火边的人说，他用一个故事换你一点干粮。\n\n你说你的干粮不多。他说那就换半个。\n\n他说话的时候一直看着火，没有看你。',
+  opts: [
+    { ok: '他讲了一个很短的故事，讲完你笑了。\n\n你很久没有笑过。笑完有点陌生。' },
+    { ok: '他点点头，自己讲了起来，讲给火听。\n\n你听了一半，另一半睡着了。' }
+  ]
+};
+
+TEXTS.idle_button = {
+  title: '补一个扣子',
+  text: '你的外衣掉了一个扣子，风从那里灌进来，正好对着肋骨。\n\n你在路边坐下来，找出一截线。线比扣眼粗，穿了很久才穿过去。\n\n路上没有别的事，你也不急。',
+  opts: [
+    { ok: '补完的扣子有点歪。你扣上，风不往里灌了。\n\n走起来的时候，那一小块布兜着风，鼓一下，瘪一下。' },
+    { ok: '你把衣襟掖进去。走两步就松了，你又掖了一次。\n\n第三次你没有再掖。' }
+  ]
+};
+
+TEXTS.idle_apple = {
+  title: '一把晒干的苹果',
+  text: '路边的老太太叫住你，塞给你一把晒干的苹果片。她说她晒多了，吃不完，放着也是坏。\n\n苹果片很硬，边缘卷着，颜色像旧木头。\n\n她的手很干，指关节很大。',
+  opts: [
+    { ok: '你收下，道了谢。嚼了一片，很甜，甜得有点意外。\n\n你又拿了一片。' },
+    { ok: '你说不用了。她收回手，自己嚼了一片，说那就算了。\n\n你走出很远，还能看见她坐在门口。' }
+  ]
+};
+
 /* 把长文本覆盖到事件结构上 */
 (function applyTexts(){
   const bad = [];
@@ -4266,6 +4468,7 @@ function hurt(n){
 
 function applyFx(fx, ctx){
   if(!fx) return [];
+  const snap = { hp:G.hp, supply:G.supply, resolve:G.resolve };
   let f = fx;
   if(f.hp && f.hp < 0 && G.dmgBonus) f = Object.assign({}, f, { hp: f.hp - G.dmgBonus });
   /* 无援（难度 V 起）：营地与休整的恢复减半，但至少留 1 点 ——
@@ -4320,6 +4523,16 @@ function applyFx(fx, ctx){
   }
   if(f.flag){ for(const k in f.flag) G.flags[k] = f.flag[k]; }
   clamp();
+  /* 上限已满时，+1 其实一点没涨。把结算条上的数字改成真实变化，
+     否则玩家会看见「决心 +1」而条子没动 —— 那是引擎在说假话。 */
+  for(let i = out.length - 1; i >= 0; i--){
+    const o = out[i];
+    if(typeof o.v !== 'number' || o.v <= 0) continue;
+    if(o.k === '生命') o.v = G.hp - snap.hp;
+    else if(o.k === '补给') o.v = G.supply - snap.supply;
+    else if(o.k === '决心') o.v = G.resolve - snap.resolve;
+    if(o.v === 0) out.splice(i, 1);
+  }
   return out;
 }
 
@@ -4672,6 +4885,28 @@ function pickEvent(node){
           let r2 = srnd()*st;
           for(const e of sols){ r2 -= (e.weight||10); if(r2<=0) return e; }
           return sols[sols.length-1];
+        }
+      }
+    }
+  }
+
+  /* 闲事：营地与叙事节点有四成机会先给一件小事。
+     它不推进任何东西，只是让一局里有喘气的地方；每局最多两件，
+     所以不会把「正事」挤光。夜话优先于闲事：独白比小事更靠近人。 */
+  if(cat === 'camp' || cat === 'story'){
+    const idleUsed = (G.groupCount && G.groupCount.idle) || 0;
+    if(idleUsed < 2){
+      const irnd = mulberry32(hashStr(G.seed + '|' + node.id + '|idle'));
+      /* 第一件必给：每局都该有一次不看输赢的时候。第二件看运气。 */
+      if(idleUsed === 0 || irnd() < 0.35){
+        const idles = EVENTS.filter(e=>{
+          if(e.group !== 'idle') return false;
+          if(G.seen[e.id]) return false;
+          if(e.region !== 'any' && e.region !== region) return false;
+          return true;
+        });
+        if(idles.length){
+          return idles[Math.floor(irnd() * idles.length)];
         }
       }
     }
