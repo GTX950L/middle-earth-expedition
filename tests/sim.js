@@ -2,7 +2,8 @@
 /* 中土远征 · 离线回归
    用法：node tests/sim.js
    零依赖。把 index.html 里的 <script> 抽出来放进 mock DOM 里跑：
-   1) 数据完整性  2) 阴影机制专项  3) 规则接线  4) 刷新恢复  5) 可复现性  6) 300 局模拟  7) 渲染结构。
+   1) 数据完整性  2) 阴影机制  3) 规则接线  4) 刷新恢复  5) 可复现性  6) 300 局模拟
+   7) 渲染结构  8) 内容扩容与回响埋点  9) 产物。
    不启动浏览器，不写网络，不改仓库文件。 */
 
 const fs = require('fs');
@@ -167,7 +168,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.3，能完整玩通。', '版本号']
+    ['v0.4，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -561,7 +562,7 @@ function fakeTier(G, o) {
   return diff >= 5 ? 'clean' : (diff >= 0 ? 'cost' : 'fail');
 }
 
-const stats = { steps: 0, takenSeen: 0, regionSeen: 0, echoOK: 0, kinds: {}, echoes: new Set() };
+const stats = { steps: 0, takenSeen: 0, regionSeen: 0, echoOK: 0, kinds: {}, echoes: new Set(), echoTypes: new Set() };
 
 function runOne(heroId, tierId, seed, wantTrace) {
   vm.runInContext('META = defaultMeta()', ctx);
@@ -611,6 +612,11 @@ function runOne(heroId, tierId, seed, wantTrace) {
 
   stats.steps += steps;
   const o = G.over;
+  for (const e of (G.echoes || [])) {
+    stats.echoTypes.add(e.t);
+    if (e.t === 'region' && /边境|古大道|风云顶/.test((e.from || '') + (e.to || '')))
+      fail('跨地区埋点用了地区全称（回响应使用简称）：' + e.from + '→' + e.to);
+  }
   stats.kinds[o.kind] = (stats.kinds[o.kind] || 0) + 1;
   if (!o.echo || typeof o.echo !== 'string' || !o.echo.trim()) fail('结算回响为空：' + seed + '/' + o.kind);
   else {
@@ -638,7 +644,7 @@ section('⑥ 300 局自动模拟');
   const heroes = HEROES.map(h => h.id);
   const tiers = TIERS.map(t => t.id);
   stats.echoOK = 0; stats.kinds = {}; stats.echoes.clear(); stats.steps = 0;
-  stats.takenSeen = 0; stats.regionSeen = 0;
+  stats.takenSeen = 0; stats.regionSeen = 0; stats.echoTypes.clear();
   const t0 = Date.now();
   for (let i = 0; i < 300; i++) {
     runOne(heroes[i % heroes.length], tiers[(i * 7) % tiers.length], 'SIM-' + i, false);
@@ -647,6 +653,8 @@ section('⑥ 300 局自动模拟');
   ok('结局分布 ' + Object.entries(stats.kinds).map(([k, v]) => k + '=' + v).join(' / '));
   ok('结算回响非空 ' + stats.echoOK + '/300，去重后 ' + stats.echoes.size + ' 种（不是同一段模板复读）');
   ok('出现被夺走选项的事件 ' + stats.takenSeen + ' 次；地区版正文命中 ' + stats.regionSeen + ' 次');
+  if (stats.echoTypes.size < 10) fail('300 局里回响埋点只覆盖 ' + stats.echoTypes.size + ' 类（应 ≥10）');
+  ok('回响埋点实际覆盖 ' + stats.echoTypes.size + ' 类：' + Array.from(stats.echoTypes).sort().join(' / '));
 }
 
 section('⑦ 渲染结构');
@@ -691,9 +699,126 @@ section('⑦ 渲染结构');
   if (!h4.includes('炉火的手艺还在')) fail('军械库没有写明当前是矮人半价');
   if (/undefined|NaN/.test(h4)) fail('军械库渲染含脏值');
   ok('军械库：矮人半价提示与 forgeCost 同源，文案与扣费一致');
+
+  /* v0.4 新事件：长叙事文本要真的进 DOM，且不出现脏值 */
+  vm.runInContext('META = defaultMeta(); newGame("ranger", 1, "render-v04")', ctx);
+  ctx.__ev = EVENTS.find(e => e.id === 'bree_chalk');
+  vm.runInContext('G.event = shadowVariant(__ev); G.layer = 6; G.screen = "event"; render()', ctx);
+  const h5 = vm.runInContext('document.getElementById("app").innerHTML', ctx);
+  if (!h5.includes('第三道只画了一半')) fail('v0.4 新事件的正式叙事文本没有渲染');
+  if (/undefined|NaN|\[object/.test(h5)) fail('v0.4 事件页渲染含脏值');
+  ok('v0.4 事件页：新叙事文本已渲染、无脏值');
 }
 
-section('⑧ 产物');
+/* ---------- 8. 内容扩容与回响埋点 ---------- */
+section('⑧ 内容扩容与回响埋点');
+{
+  /* 地区版只给「有实体场景、且选项叙事不绑定地点」的通用事件写。
+     独白抽离地点、阴影吞掉地方气味、多解障碍与凭证事件的 ok 文本写死了
+     「巷子 / 泥地 / 村子」—— 这四类刻意保持中性，不许误加。 */
+  const keys = Object.keys(REGION_TEXTS.shire);
+  const norm = a => a.slice().sort().join(',');
+  if (norm(keys) !== norm(Object.keys(REGION_TEXTS.bree)) ||
+      norm(keys) !== norm(Object.keys(REGION_TEXTS.wild))) fail('三个地区的地区版键不一致');
+  for (const k of keys) {
+    const ev = EVENTS.find(e => e.id === k);
+    if (!ev || ev.region !== 'any') fail('地区版指向非通用事件：' + k);
+  }
+  const groups = {
+    '独白':      e => e.group === 'solitude',
+    '阴影专用':  e => /^any_shadow_/.test(e.id),
+    '多解障碍':  e => /^gate_(chain|wall)/.test(e.id),
+    '凭证事件':  e => /^token_/.test(e.id)
+  };
+  let neutralCount = 0;
+  for (const [name, pred] of Object.entries(groups)) {
+    const list = EVENTS.filter(e => e.region === 'any' && pred(e));
+    neutralCount += list.length;
+    const leaked = list.filter(e => keys.includes(e.id));
+    if (leaked.length) fail(name + '被误地区化：' + leaked.map(e => e.id).join(', '));
+  }
+  const anyCount = EVENTS.filter(e => e.region === 'any').length;
+  if (keys.length + neutralCount !== anyCount) fail('通用池分类不闭合：' + keys.length + ' + ' + neutralCount + ' ≠ ' + anyCount);
+  ok('地区版 ' + keys.length + ' 条 × 3 = ' + keys.length * 3 + ' 段；其余 ' + neutralCount +
+     ' 条按设计保持中性（独白 / 阴影 / 多解障碍 / 凭证），分类闭合');
+
+  /* 新补的 3 条地区版：三地正文确实不同，且原事件不被改写 */
+  const probe = EVENTS.find(e => e.id === 'any_cleanse_water');
+  const vs = ['shire', 'bree', 'wild'].map(r => call('regionVariant', probe, r));
+  if (new Set(vs.map(v => v.text)).size !== 3) fail('新地区版三条正文没有差异');
+  if (probe.text === vs[0].text || !probe.text) fail('regionVariant 改了原事件');
+  if (!vs[0].text.includes('田埂') || !vs[1].text.includes('驿棚') || !vs[2].text.includes('岩根'))
+    fail('新地区版缺地区特征词');
+  ok('v0.4 新增地区版：泉眼在夏尔 / 布理 / 荒野三处正文互异，原事件保持完整');
+
+  /* v0.4 新增事件：三件配套缺一不可 —— 正式叙事文本、可被夺走的温和选项、阴影改写 */
+  const v4 = ['shire_hedge','shire_oven','shire_roost','shire_shortcut','shire_basket',
+              'bree_signpost','bree_nails','bree_scale','bree_chalk','bree_lamp',
+              'wild_thread','wild_steps','wild_box','wild_lee','wild_ridge'];
+  const byR = {};
+  for (const id of v4) {
+    const ev = EVENTS.find(e => e.id === id);
+    if (!ev) { fail('v0.4 事件缺失：' + id); continue; }
+    byR[ev.region] = (byR[ev.region] || 0) + 1;
+    if (!TEXTS[id] || !TEXTS[id].opts) fail('v0.4 事件缺正式叙事文本：' + id);
+    if (!ev.options.some(o => o.gentle)) fail('v0.4 事件没有可被阴影夺走的温和选项：' + id);
+    if (!SHADOW_TEXTS[id] && !SHADOW_TAIL[id]) fail('v0.4 事件没有阴影改写：' + id);
+  }
+  if (byR.shire !== 5 || byR.bree !== 5 || byR.wild !== 5) fail('v0.4 事件地区分布不是 5/5/5');
+  ok('v0.4 新增 15 条：TEXTS / 温和选项 / 阴影改写全覆盖，地区 5/5/5');
+
+  /* 构造一局同时含 14 类埋点的行程，逐结局验证挑选逻辑 */
+  const echoes = [
+    { t:'fail',    layer:7, title:'雾里的石圈', label:'走进石圈，看看中间有什么' },
+    { t:'stage',   layer:6, name:'沉重' },
+    { t:'gear',    layer:3, kind:'break', name:'铁匠的斧' },
+    { t:'pick',    layer:2, name:'铁匠的斧' },
+    { t:'letter',  layer:5 },
+    { t:'vow',     layer:4 },
+    { t:'region',  layer:5, from:'夏尔', to:'布理' },
+    { t:'reframe', layer:6, title:'锁着的门' },
+    { t:'token',   layer:4, kind:'got',  name:'生锈的钥匙' },
+    { t:'token',   layer:8, kind:'used', name:'生锈的钥匙' },
+    { t:'taken',   layer:7, title:'一堵墙' },
+    { t:'cost',    layer:3, title:'断了的桥' },
+    { t:'reroll',  layer:6, title:'一堵墙' },
+    { t:'hurt',    layer:9, cause:'supply' }
+  ];
+  vm.runInContext('G = ' + JSON.stringify({ layer:9, echoes }), ctx);
+  const heads = {
+    dead:    '那之后你没有再试第二次',
+    shadow:  '那天，你还在走',
+    retreat: '来时的路你刚走过一遍',
+    win:     '最后一段路上你没有再回头'
+  };
+  const outs = {};
+  for (const k of Object.keys(heads)) {
+    const out = vm.runInContext('buildEcho(' + JSON.stringify(k) + ', 10)', ctx);
+    outs[k] = out;
+    const ps = out.split('\n\n').filter(x => x.trim());
+    if (!out.trim()) fail('回响为空：' + k);
+    if (/undefined|NaN|\[object/.test(out)) fail('回响含脏值：' + k);
+    if (new Set(ps).size !== ps.length) fail('回响段落重复：' + k);
+    if (ps.length > 5) fail('回响超过 5 段：' + k);
+    if (out.indexOf(heads[k]) < 0) fail('结局 ' + k + ' 的开头段不对：' + out.slice(0, 60));
+  }
+  if (outs.shadow.indexOf('被划掉') < 0) fail('堕影结局没有抬高「被夺走」痕迹');
+  if (outs.win.indexOf('立过誓') < 0) fail('通关结局没有抬高「立誓」痕迹');
+  if (outs.retreat.indexOf('换成了') < 0) fail('撤退结局没有抬高「跨地区」痕迹');
+  if (outs.dead.indexOf('是第 2 程捡的') < 0) fail('倒下结局没有把「捡到→碎掉」连成因果');
+  ok('4 类结局回响：开头段正确、按结局抬高对应痕迹、捡到与碎掉连成因果、无脏值无重复');
+
+  /* once 类型不能刷屏，也不能把标记写进存档 */
+  vm.runInContext('G = { layer:2, echoes:[] }', ctx);
+  vm.runInContext('pushEcho({t:"taken",once:true,title:"一堵墙"}); pushEcho({t:"taken",once:true,title:"另一堵墙"}); pushEcho({t:"cost",once:true,title:"桥"})', ctx);
+  const saved = JSON.parse(vm.runInContext('JSON.stringify(G.echoes)', ctx));
+  if (saved.filter(e => e.t === 'taken').length !== 1) fail('once 去重失效：taken 记了多次');
+  if (saved.some(e => e.once)) fail('once 标记被写进存档');
+  if (saved[0].layer !== 3) fail('埋点层数不对（应为 layer+1）');
+  ok('once 埋点只记第一次，标记不进存档，层数按 layer+1');
+}
+
+section('⑨ 产物');
 ok('index.html ' + (fs.statSync(HTML_PATH).size / 1024).toFixed(1) + ' KB / ' + html.split('\n').length + ' 行');
 ok('总层数 ' + TOTAL_LAYERS + '，装备 ' + Object.keys(ITEMS).length + ' 件，出身 ' + HEROES.length + ' 个，难度 ' + TIERS.length + ' 档');
 
