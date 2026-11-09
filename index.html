@@ -314,7 +314,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.10
+   中土远征 v0.11
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -2451,6 +2451,37 @@ const IDLE_AFTER = {
   idle_apple: [
     '包里还有两片苹果。你摸了摸，没有吃。',
     '她坐在门口嚼苹果的样子还在。你走快了一点。'
+  ]
+};
+
+/* 状态句：同一件事，身上不一样，读起来也不该一样。
+   每程最多一句，按「最紧的那件事」挑：先看伤，再看粮，再看阴影，
+   然后是身边有没有人、心里有没有事。写得越具体，越不像旁白。 */
+const MOOD_TAILS = {
+  lowHp: [
+    '你走得很慢。每一步落地，膝盖都先软一下。',
+    '伤口在衣服下面发烫。你没有解开看。',
+    '你数着自己的呼吸走，数到十就重新开始。'
+  ],
+  lowSupply: [
+    '包轻了。你把手伸进去，摸到的只有布。',
+    '你开始算还剩几顿。算完就不想了。',
+    '路过一棵野果树，你站了一会儿，没有摘。'
+  ],
+  deepShadow: [
+    '你没有回头看。你知道回头也看不出什么。',
+    '路边的影子比树多。你没有去数。',
+    '有些话到了嘴边，你忘了本来要说什么。'
+  ],
+  companion: [
+    '他在你侧后半步。你没有说话，他也没有。',
+    '你听见他换了一次肩。你没有回头。',
+    '他停下来系鞋带。你站在前面等，没有催。'
+  ],
+  thread: [
+    '那件事还在。你没有提，它也没有走。',
+    '你想起那件事，又把它按回去。',
+    '你想起那件事。想起来的时候，脚步慢了一点。'
   ]
 };
 
@@ -4754,6 +4785,27 @@ function injectCompanionOption(ev){
   });
 }
 
+/* 状态句：见 MOOD_TAILS。只挂普通事件；这一程若已有闲事余味就不加，
+   免得一句话压着一句话。每程最多一条。 */
+function moodVariant(ev, node){
+  if(!G || !ev) return ev;
+  if(G.afterglow) return ev;
+  const id = String(ev.id || '');
+  if(id.indexOf('__') === 0 || id.indexOf('thread_') === 0 ||
+     id.indexOf('companion_') === 0 || id.indexOf('r_L') === 0) return ev;
+  let key = '';
+  if(G.hp <= Math.max(2, Math.floor(G.hpMax * 0.35))) key = 'lowHp';
+  else if(G.supply <= 1) key = 'lowSupply';
+  else if((G.shadow || 0) >= 6) key = 'deepShadow';
+  else if(G.companion) key = 'companion';
+  else if(G.thread && !G.thread.done && !G.thread.dropped && G.thread.pushes > 0) key = 'thread';
+  if(!key) return ev;
+  const lines = MOOD_TAILS[key];
+  const rnd = mulberry32(hashStr(G.seed + '|mood|' + (node ? node.id : '') + '|' + G.layer));
+  const line = lines[Math.floor(rnd() * lines.length)];
+  return Object.assign({}, ev, { text: ev.text + '\n\n' + line });
+}
+
 /* 余味：上一程那件小事留下的一句，挂在下一件普通事件末尾，只出现一次。
    私事、同行者、秘藏、启程与终点都不接 —— 那些时刻不该被人打岔。 */
 function afterglowVariant(ev){
@@ -5301,7 +5353,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.10</div>
+    <div class="eyebrow">文字跑团 · v0.11</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十二程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -5943,6 +5995,7 @@ function enterNode(id){
   view = noteTaken(takeGentleOptions(view));
   view = injectObserveOption(view);
   view = injectCompanionOption(view);
+  view = moodVariant(view, node);
   view = afterglowVariant(view);
   G.screen = 'event';
   G.event = shadowVariant(view);

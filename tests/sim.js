@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.10，能完整玩通。', '版本号']
+    ['v0.11，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -1471,6 +1471,52 @@ section('⑮ 路上有些不必赢也不必输的事');
   if (get('G').afterglow === null) fail('特殊事件不应消耗余味');
   vm.runInContext('G.afterglow = null', ctx);
   ok('余味：24 句按选项分开、只挂一次、私事 / 同行者 / 结果页 / 终点都不接也不消耗');
+
+  /* 15.3 状态句：五类条件各自命中、每程最多一条、有余味时不叠 */
+  const moods = get('MOOD_TAILS');
+  const moodKeys = Object.keys(moods);
+  if (moodKeys.length !== 5) fail('状态句应有 5 类，实际 ' + moodKeys.length);
+  for (const k of moodKeys) {
+    if (!Array.isArray(moods[k]) || moods[k].length !== 3) fail(k + ' 不是三条');
+    if (moods[k].some(s => typeof s !== 'string' || !s.trim())) fail(k + ' 有空句');
+  }
+  const setMood = extra => {
+    vm.runInContext('G = Object.assign({shadow:0, hp:10, hpMax:10, supply:5, companion:null, ' +
+      'thread:null, afterglow:null, layer:2, seed:"mood"}, ' + extra + ')', ctx);
+  };
+  const moodEv = { id:'idle_dog', type:'story', region:'shire', text:'正文', options:[{ label:'a' }] };
+  const moodHit = (key, id) => {
+    const v = call('moodVariant', moodEv, { id });
+    return moods[key].some(s => v.text.includes(s));
+  };
+  setMood('{hp:2}');
+  if (!moodHit('lowHp','n1')) fail('低血没有状态句');
+  setMood('{supply:1}');
+  if (!moodHit('lowSupply','n2')) fail('低补给没有状态句');
+  setMood('{shadow:6}');
+  if (!moodHit('deepShadow','n3')) fail('高阴影没有状态句');
+  setMood('{companion:{id:"hunter"}}');
+  if (!moodHit('companion','n4')) fail('有同伴没有状态句');
+  setMood('{thread:{id:"word",pushes:1,done:false,dropped:false}}');
+  if (!moodHit('thread','n5')) fail('私事推进没有状态句');
+
+  /* 优先级：伤比粮先 */
+  setMood('{hp:2, supply:1}');
+  if (!moodHit('lowHp','n6')) fail('伤和粮同时见底时没有先写伤');
+
+  /* 每程只加一段；有余味时不叠；特殊事件不接；数值不变 */
+  setMood('{hp:2}');
+  const mv = call('moodVariant', moodEv, { id:'n7' });
+  if ((mv.text.match(/\n\n/g) || []).length !== 1) fail('状态句一程加了不止一条');
+  if (get('G').hp !== 2) fail('状态句不该改数值');
+  setMood('{hp:2, afterglow:{text:"余味", layer:1}}');
+  if (call('moodVariant', moodEv, { id:'n8' }).text !== '正文') fail('有闲事余味时不该再叠状态句');
+  setMood('{hp:2}');
+  for (const id of ['thread_word_0','companion_meet','__final','r_L3_x']) {
+    if (call('moodVariant', { id, text:'正文', options:[] }, { id:'n9' }).text !== '正文')
+      fail(id + ' 不该接状态句');
+  }
+  ok('状态句：5 类各 3 句、条件命中、伤优先于粮、每程一条、有余味不叠、特殊事件不接');
 }
 
 section('⑯ 产物');
