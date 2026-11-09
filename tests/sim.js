@@ -176,6 +176,16 @@ section('① 数据完整性');
   }
   ok('README 状态表 6 项与实测一致（含版本号）');
 
+  /* 版本号三处必须一起走：README、代码头注释、标题页。只改文档不改代码，
+     线上就会显示旧版本 —— v0.9 第一次提交就漏了这一处。 */
+  const ver = (readme.match(/v(\d+\.\d+)，能完整玩通/) || [])[1];
+  if (!ver) fail('README 版本号格式不对');
+  else {
+    if (!html.includes('文字跑团 · v' + ver)) fail('标题页版本串没跟 README 对齐（应为 v' + ver + '）');
+    if (!html.includes('中土远征 v' + ver)) fail('代码头版本串没跟 README 对齐（应为 v' + ver + '）');
+    else ok('版本串：README / 代码头 / 标题页三处一致（v' + ver + '）');
+  }
+
   if (warns.length) for (const w of warns) fail('运行时告警：' + w);
   else ok('运行时告警 0 条（TEXTS 对齐通过）');
 }
