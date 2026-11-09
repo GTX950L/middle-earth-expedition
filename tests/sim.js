@@ -3,7 +3,7 @@
    用法：node tests/sim.js
    零依赖。把 index.html 里的 <script> 抽出来放进 mock DOM 里跑：
    1) 数据完整性  2) 阴影机制  3) 规则接线  4) 刷新恢复  5) 可复现性  6) 300 局模拟
-   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 产物。
+   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 装备带回  11) 产物。
    不启动浏览器，不写网络，不改仓库文件。
    平衡曲线（各难度通关率是否单调）另见 tests/diag.js。 */
 
@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.5，能完整玩通。', '版本号']
+    ['v0.6，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -517,12 +517,14 @@ section('④ 刷新恢复');
   delete parsed.echoes;                         // 模拟 v0.2 的旧存档
   delete parsed.steadyLeft;                     // 模拟 v0.4 及以前：没有阴影对抗字段
   delete parsed.shadowResistUsed;
+  delete parsed.secLeft;                        // 模拟 v0.5 及以前：没有「收好」次数
   const c2 = makeCtx({ me_run_v2: JSON.stringify(parsed) });
   const G2 = vm.runInContext('G', c2);
   if (!G2 || G2.screen === 'title') fail('刷新后没有接上未结束的一局');
   else if (!Array.isArray(G2.echoes)) fail('旧存档缺少 echoes 字段时没有兼容补齐');
   else if (G2.steadyLeft !== 2 || G2.shadowResistUsed !== false) fail('旧存档没有补齐 v0.5 的阴影对抗字段');
-  else ok('刷新恢复到 ' + G2.screen + '；旧存档 echoes / steadyLeft / shadowResistUsed 均已补齐');
+  else if (G2.secLeft !== 2 || !Array.isArray(G2.loot)) fail('旧存档没有补齐 v0.6 的 secLeft / loot');
+  else ok('刷新恢复到 ' + G2.screen + '；旧存档 echoes / steadyLeft / shadowResistUsed / secLeft 均已补齐');
 }
 
 /* ---------- 5/6. 自动模拟 ---------- */
@@ -1006,7 +1008,107 @@ section('⑨ 可玩性与平衡（路线 / 阴影对抗 / 难度）');
   ok('六档难度从 1 起累积：6 档含 DC / 补给 / 追踪 / 荒野路耗 / 恢复减半 / 禁退 / 终局 DC / 伤害；1 档全无');
 }
 
-section('⑩ 产物');
+/* ---------- 11. 装备带回 ----------
+   v0.6：捡到 → 收好 → 带回 → 入库，每一环都要有行为断言。 */
+section('⑪ 装备真的带得回来');
+{
+  const setup = (seed, extra) => {
+    vm.runInContext('META = defaultMeta(); newGame("ranger", 1, ' + JSON.stringify(seed) + '); ' +
+      'G.screen = "map"; G.loot = [{id:"sword",plus:0},{id:"ring",plus:0},' +
+      '{id:"cloak",plus:0},{id:"dagger",plus:0}]; ' + (extra || ''), ctx);
+    return getG();
+  };
+
+  /* 11.1 收好的代价、上限、去重、埋点 */
+  let g = setup('GEAR-SEC');
+  const rmax = g.resolveMax;
+  const c = callC('secureCost');
+  if (!c.ok || c.left !== 2) fail('收好初始可用态不对');
+  callC('secureLoot', 0);
+  g = getG();
+  if (!g.loot[0].sec || g.secLeft !== 1 || g.resolve !== rmax - 1)
+    fail('收好没扣 1 点决心 / 没标记 / 没减次数');
+  const bar = vm.runInContext('lootBar()', ctx);
+  if (!bar.includes('已收好') || !bar.includes('收好 1 件花 1 点决心'))
+    fail('随身条没显示收好状态与代价');
+  callC('secureLoot', 0);
+  if (getG().resolve !== rmax - 1) fail('同一件重复收好又扣了决心');
+  callC('secureLoot', 1);
+  callC('secureLoot', 2);
+  g = getG();
+  if (g.secLeft !== 0 || g.loot[2].sec || g.resolve !== rmax - 2)
+    fail('收好超过每局 2 次上限仍然生效');
+  if (!g.echoes.some(e => e.t === 'secure')) fail('收好没有进回响埋点');
+  const secEcho = vm.runInContext('buildEcho("retreat", 3)', ctx);
+  if (!secEcho.includes('裹进了行囊最底层')) fail('收好的痕迹没有进结算回响');
+  ok('收好：1 点决心 / 每局 2 次 / 同一件不重复扣 / 次数用完即止 / 进回响');
+
+  /* 11.2 四类结局：收好的必带回（堕影除外），kept 与 lost 仍守恒 */
+  const endWith = (kind, seed) => {
+    setup(seed, 'G.loot[1].sec = true;');
+    callC('endRun', kind);
+    return getG().over;
+  };
+  const w = endWith('win', 'GEAR-WIN'), r = endWith('retreat', 'GEAR-RET');
+  const d = endWith('dead', 'GEAR-DEAD'), s = endWith('shadow', 'GEAR-SHD');
+  const inv = o => (o.kept.length + o.lost.length === 4) && !o.lost.some(l => o.kept.includes(l));
+  if (!inv(w) || !inv(r) || !inv(d) || !inv(s)) fail('引入收好后，kept / lost 账目不再守恒');
+  if (w.kept.length !== 4 || r.kept.length !== 3 || d.kept.length !== 2 || s.kept.length !== 0)
+    fail('四类结局带回件数不对（应 4 / 3 / 2 / 0）');
+  for (const [name, o] of [['win', w], ['retreat', r], ['dead', d]]) {
+    if (!o.kept.some(l => l.sec)) fail(name + ' 结局把收好的东西弄丢了');
+  }
+  if (!s.lost.some(l => l.sec)) fail('堕影结局没有把收好的东西列为失去');
+  ok('收好的东西：通关 / 撤退 / 倒下必带回，堕影全失；kept 与 lost 互斥守恒');
+
+  /* 11.3 重复带回不是白跑：低等级折材料，高等级直接升级 */
+  setup('GEAR-MELT');
+  vm.runInContext('META.armory = {sword:0, ring:2}; ' +
+    'G.loot = [{id:"sword",plus:0},{id:"ring",plus:3},{id:"cloak",plus:1}];', ctx);
+  callC('endRun', 'win');
+  const mo = getG().over, mm = get('META');
+  if (mo.added !== 1 || mo.upgraded !== 1 || mo.melted !== 1)
+    fail('重复带回没有分成新增 / 强化 / 折材料三类');
+  if (mm.armory.ring !== 3 || mm.armory.cloak !== 1 || mm.armory.sword !== 0)
+    fail('入库的强化等级算错了');
+  if (mo.meltMats < 1 || mo.mats < mo.meltMats) fail('折出来的材料没有计入结算');
+  const rh = vm.runInContext('renderResult(); document.getElementById("app").innerHTML', ctx);
+  if (!rh.includes('入库：') || !rh.includes('折成') || !rh.includes('军械库现有'))
+    fail('结算页没写入库明细');
+  if (/undefined|NaN/.test(rh)) fail('结算页入库明细含脏值');
+  ok('重复带回：低等级折材料、高等级直接升级、结算页逐项写清');
+
+  /* 11.4 空手进秘藏必出一件，不再整局颗粒无收 */
+  setup('GEAR-TREASURE');
+  const tnode = vm.runInContext('(function(){var idx=G.map.index;for(var k in idx){var n=idx[k];' +
+    'if(n.type==="treasure"&&n.layer>0){for(var p in idx){if(idx[p].next&&idx[p].next.indexOf(n.id)>=0)' +
+    'return {id:n.id,parent:p};}}}return null;})()', ctx);
+  if (!tnode) fail('测试地图上找不到秘藏节点');
+  else {
+    ctx.__t = tnode;
+    vm.runInContext('G.at=__t.parent; G.screen="map"; G.loot=[];', ctx);
+    callC('enterNode', tnode.id);
+    if (getG().loot.length !== 1) fail('空手进秘藏没有必出一件装备');
+    else ok('空手进秘藏必出一件装备（不再整局颗粒无收）');
+  }
+
+  /* 11.5 +0 装备永久损毁后，局外 loadout / 局内 equipped 不留幽灵 */
+  let sawBreak = false;
+  for (let i = 0; i < 12 && !sawBreak; i++) {
+    setup('GEAR-GHOST-' + i, 'G.loot=[]; G.layer=' + i + ';');
+    vm.runInContext('META.armory={sword:0}; META.loadout={main:"sword"}; G.equipped={main:"sword"};', ctx);
+    const out = callC('applyCost');
+    if (out && out.text.includes('断了')) {
+      sawBreak = true;
+      if (get('META').loadout.main) fail('+0 装备销毁后，局外 loadout 还挂着幽灵装备');
+      if (getG().equipped.main) fail('+0 装备销毁后，局内 equipped 还挂着幽灵装备');
+    }
+  }
+  if (!sawBreak) fail('12 次采样没抽到「装备毁坏」代价，无法验证幽灵装备清理');
+  else ok('+0 装备永久销毁：loadout 与 equipped 同步清空，不留幽灵装备');
+}
+
+section('⑫ 产物');
 ok('index.html ' + (fs.statSync(HTML_PATH).size / 1024).toFixed(1) + ' KB / ' + html.split('\n').length + ' 行');
 ok('总层数 ' + TOTAL_LAYERS + '，装备 ' + Object.keys(ITEMS).length + ' 件，出身 ' + HEROES.length + ' 个，难度 ' + TIERS.length + ' 档');
 

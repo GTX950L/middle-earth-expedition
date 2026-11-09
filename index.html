@@ -273,8 +273,14 @@ h3{font-size:15px;line-height:1.5}
 .lootbar{display:flex;align-items:center;gap:10px;padding:9px 14px;margin-bottom:14px;font-size:12px;color:#4a5f3a;
   background:#f1f6ec;border:1px solid #d4e0c6;border-left:3px solid #6d8a52;border-radius:6px;flex-wrap:wrap}
 .lootbar .lname{font-weight:500;letter-spacing:.04em}
-.lootbar .litems{flex:1;min-width:80px;line-height:1.6}
-.lootbar .lrisk{font-size:11px;color:#8a9a78;letter-spacing:.02em}
+.lootbar .litems{flex:1;min-width:80px;line-height:1.6;display:flex;flex-wrap:wrap;gap:5px}
+.lootbar .lchip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border:1px solid #d4e0c6;border-radius:4px;background:#fff;font-size:11.5px;white-space:nowrap}
+.lootbar .lchip.sec{border-color:#a9bf90;background:#eaf2e0}
+.lootbar .lchip i{font-style:normal;font-size:10.5px;color:#6d8a52;letter-spacing:.04em}
+.lootbar .secbtn{border:0;border-bottom:1px solid #6d8a52;background:none;padding:0 1px;font-size:11px;color:#4a6b34;cursor:pointer;font-family:inherit}
+.lootbar .secbtn:hover{color:#2f4a20;border-bottom-color:#2f4a20}
+.lootbar .secbtn:disabled{color:#9aa88c;border-bottom-color:#c9d5bc;cursor:default}
+.lootbar .lrisk{font-size:11px;color:#8a9a78;letter-spacing:.02em;flex-basis:100%}
 .fx.lost{text-decoration:line-through;opacity:.55}
 @media (max-width:640px){
   .lootbar{padding:8px 12px;font-size:11.5px;gap:7px}
@@ -288,7 +294,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.5
+   中土远征 v0.6
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -3943,7 +3949,7 @@ function newGame(heroId, tierId, seed){
     walkedList:[], rerolls:0, perLayerLore:false, wardenUsed:false,
     standUsed:false, luckUsed:false, firstCheck:true,
     freeRerolls: tf.rules.extraReroll ? 1 : 0, eventCount:0,
-    steadyLeft:2, shadowResistUsed:false,
+    steadyLeft:2, shadowResistUsed:false, secLeft:SEC_LIMIT,
     renown:0, materials:0, over:null,
     campHalf: !!mods.campHalf, dcBonus: mods.dc||0, supplyDrain: mods.supplyDrain||0, dmgBonus: mods.dmg||0,
     hunt: !!mods.hunt, noRetreat: !!mods.noRetreat, finalDC: mods.finalDC||0,
@@ -4237,7 +4243,10 @@ function applyCost(){
   const out = { id:key, text:'', fx:[] };
 
   if(key === 'loot' && G.loot.length){
-    const i = Math.floor(rnd() * G.loot.length);
+    /* 已经收好的东西不先碎：玩家为它付过决心，保底要作数 */
+    const loose = G.loot.map((l,j)=> l.sec ? -1 : j).filter(j => j >= 0);
+    const i = loose.length ? loose[Math.floor(rnd() * loose.length)]
+                           : Math.floor(rnd() * G.loot.length);
     const gone = G.loot.splice(i,1)[0];
     const it = ITEMS[gone.id];
     out.text = '你确实做到了。但' + (it ? it.name : '那件东西') + '不在你手里了。';
@@ -4257,7 +4266,14 @@ function applyCost(){
       pushEcho({ t:'gear', kind:'chip', name: it ? it.name : id, plus: plus });
     } else {
       delete META.armory[id];
-      delete G.equipped[slot];
+      /* 藏品没了，装备栏里就不能还挂着这个名字：局外 loadout 一起清，
+         否则军械库会显示一件已经不存在的「幽灵装备」。 */
+      META.loadout = META.loadout || {};
+      G.equipped = G.equipped || {};
+      for(const s of SLOT_ORDER){
+        if(META.loadout[s] === id) delete META.loadout[s];
+        if(G.equipped[s] === id) delete G.equipped[s];
+      }
       out.text = (it ? it.name : '手里的东西') + '断了。你把它留在了原地。';
       out.fx.push({ k:'毁坏', v: it ? it.name : id });
       pushEcho({ t:'gear', kind:'break', name: it ? it.name : id });
@@ -4552,16 +4568,49 @@ function rollLootItem(rnd){
   return pool[pool.length - 1];
 }
 
-/* 随身战利品：局内一直可见。带不回去的东西，得先让人看见它在身上 */
+/* ---------- 随身战利品 ----------
+   捡到的东西局内立即生效，但能不能带回营地原本只看结局。
+   「收好」是玩家自己能做的保底：花 1 点决心，把一件裹进行囊最底层。
+   代价、次数、按钮可用态、提示都从 secureCost() 一处取，界面不许另写一份。 */
+const SEC_LIMIT = 2;
+function secureCost(){
+  const left = G && Number.isFinite(G.secLeft) ? G.secLeft : SEC_LIMIT;
+  const place = !!(G && !G.over && (G.screen === 'map' || G.screen === 'event'));
+  const ok = place && left > 0 && G.resolve >= 1;
+  let note;
+  if(left <= 0) note = '这一趟已经收好过两件。行囊就这么大。';
+  else if(!place) note = '回到路上再收。';
+  else if(!ok) note = '现在腾不出手来。';
+  else note = '收好 1 件花 1 点决心 · 还剩 ' + left + ' 次';
+  return { ok, left, note };
+}
+function secureLoot(i){
+  const l = G && G.loot && G.loot[i];
+  const c = secureCost();
+  if(!l || l.sec || !c.ok) return;
+  const it = ITEMS[l.id];
+  G.resolve -= 1;
+  G.secLeft = c.left - 1;
+  l.sec = true;
+  addLog('收好 · ' + (it ? it.name : l.id));
+  pushEcho({ t:'secure', name: it ? it.name : l.id, once:true });
+  render();
+}
 function lootBar(){
   if(!G || !G.loot || !G.loot.length) return '';
-  const names = G.loot.map(l => ITEMS[l.id] ? ITEMS[l.id].name + (l.plus ? ' +' + l.plus : '') : l.id);
-  const shown = names.slice(0, 3).join(' · ');
-  const more = names.length > 3 ? ' 等 ' + names.length + ' 件' : '';
+  const c = secureCost();
+  const canBtn = (G.screen === 'map' || G.screen === 'event') && !G.over;
+  const chips = G.loot.map((l,i)=>{
+    const it = ITEMS[l.id];
+    const nm = it ? it.name + (l.plus ? ' +' + l.plus : '') : l.id;
+    const tail = l.sec ? '<i>已收好</i>'
+      : (canBtn ? `<button class="secbtn" onclick="secureLoot(${i})" ${c.ok?'':'disabled'}>收好</button>` : '');
+    return `<span class="lchip ${l.sec?'sec':''}">${esc(nm)}${tail}</span>`;
+  }).join('');
   return `<div class="lootbar">
     <span class="lname">随身</span>
-    <span class="litems">${esc(shown)}${esc(more)}</span>
-    <span class="lrisk">倒下即失去</span>
+    <span class="litems">${chips}</span>
+    <span class="lrisk">${esc(c.note)} · 收好的东西倒下也在，堕入阴影时什么都带不走</span>
   </div>`;
 }
 
@@ -4589,7 +4638,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.5</div>
+    <div class="eyebrow">文字跑团 · v0.6</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十二程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -4717,7 +4766,7 @@ function renderCamp(){
     </button>
     <button class="campcard" onclick="openArmory()">
       <div class="n">军械库</div>
-      <div class="d">活着带回来的东西才留在这里。可以装配，也可以锻造。</div>
+      <div class="d">带回来的东西才留在这里。可以装配，也可以锻造。</div>
       <div class="badge">${armoryCount} 件藏品</div>
     </button>
     <button class="campcard" onclick="toTitle()">
@@ -4727,7 +4776,7 @@ function renderCamp(){
     </button>
   </div>
 
-  <p class="note">局内拾到的装备在本次远征中立即生效，但只有活着带回（通关或成功撤退）才会进入军械库；倒下则全部丢失。</p>
+  <p class="note">局内拾到的装备当场生效。花 1 点决心把它「收好」（每局 2 次），倒下或撤退也能带回；没收好的按结局折损，堕入阴影则什么都留不下。重复带回的会折成材料。</p>
 
   <div class="savebox">
     <div class="sk">存档</div>
@@ -4948,7 +4997,7 @@ function renderArmory(){
         <button class="btn sm ghost" data-forge="${id}" ${plus>=5||m.materials<cost?'disabled':''}>锻造 +${plus+1}（${cost} 材料）</button>
       </div>
     </div>`;
-  }).join('') : `<p class="note">军械库是空的。活着带回装备，它们才会出现在这里。</p>`;
+  }).join('') : `<p class="note">军械库是空的。把局内捡到的东西「收好」并带回，它们才会出现在这里。</p>`;
 
   app.innerHTML = `
   <div class="topbar">
@@ -5194,8 +5243,10 @@ function enterNode(id){
     /* 秘藏本来就该翻出东西：按品质抽一件装备，用 seed 派生，可复现。
        辨物（extra.treasure）点亮后必定产出。 */
     const lrnd = mulberry32(hashStr(G.seed + '|loot|' + node.id));
-    const guaranteed = !!(G.rules && G.rules.treasure);
-    if((guaranteed || lrnd() < 0.65) && G.loot.length < 5){
+    /* 空着手进秘藏必然翻出一件：整局颗粒无收对军械库太不友好。
+       之后几次仍按品质权重抽，秘藏本来就该有东西。 */
+    const guaranteed = !!(G.rules && G.rules.treasure) || G.loot.length === 0;
+    if((guaranteed || lrnd() < 0.72) && G.loot.length < 6){
       const lid = rollLootItem(lrnd);
       if(lid && ITEMS[lid]){
         G.loot.push({ id: lid, plus: 0 });
@@ -5544,7 +5595,7 @@ function buildEcho(kind, reached){
   const letter = first('letter'), vow = first('vow');
   const region = last('region'), reframe = first('reframe');
   const taken = first('taken'), cost = first('cost'), reroll = first('reroll');
-  const steady = first('steady'), resist = first('resist');
+  const steady = first('steady'), resist = first('resist'), secured = first('secure');
   const gotToken = of('token').filter(e => e.kind === 'got')[0];
   const usedToken = of('token').filter(e => e.kind === 'used')[0];
   const paras = [];
@@ -5610,6 +5661,8 @@ function buildEcho(kind, reached){
     '「' + lastStage.name + '」那天之后，你回头看的次数变少了。');
   if(taken) add('taken', 6, taken,
     '第 ' + taken.layer + ' 程，「' + taken.title + '」，第一条温和的路被划掉了。你记得它写过什么。');
+  if(secured) add('secure', 6, secured,
+    '第 ' + secured.layer + ' 程把「' + secured.name + '」裹进了行囊最底层。');
   if(cost) add('cost', 5, cost, '第 ' + cost.layer + ' 程那次成了，代价是当场付的。');
   if(reroll) add('reroll', 5, reroll,
     '第 ' + reroll.layer + ' 程花过一点决心，把同一件事重新掷了一次。');
@@ -5637,35 +5690,46 @@ function endRun(kind){
   const reached = G.layer + 1;
   let renown = reached*4 + Math.max(0,G.hp)*2 + G.renown;
   let mats = G.materials;
+  const loot = Array.isArray(G.loot) ? G.loot : [];
+  /* 收好的和散着的先分开算：收好是玩家花过决心的保底，不占结局的额度 */
+  const secured = loot.filter(l => l.sec);
+  const loose = loot.filter(l => !l.sec);
   let kept = [];
 
   if(kind === 'win'){
-    kept = G.loot.slice(); mats += 3;
+    kept = secured.concat(loose); mats += 3;
     if(G.vow){ renown += 25; }
   }
   else if(kind === 'retreat'){
     renown = Math.floor(renown * 0.5);
-    /* 回头要轻装：默认只带走一半随身战利品；点亮「不退」才全带 */
+    /* 回头要轻装：收好的先装进包，其余默认只带走一半；点亮「不退」才全带 */
     const full = !!(G.rules && G.rules.retreatFull);
-    kept = full ? G.loot.slice() : G.loot.slice(0, Math.ceil(G.loot.length / 2));
+    kept = secured.concat(full ? loose : loose.slice(0, Math.ceil(loose.length / 2)));
     mats = Math.floor(mats * 0.5);
   } else if(kind === 'shadow'){
     renown = Math.floor(renown * 0.2);
+    /* 走到这一步的人什么也带不走，收好的也一样：这是结局，不是运气 */
     kept = []; mats = 0;
   } else {
     renown = Math.floor(renown * 0.3);
-    /* 倒下：手里最后攥着的那一件能留下，其余的留在荒野里 */
-    kept = G.loot.length ? [G.loot[G.loot.length - 1]] : [];
+    /* 倒下：收好的都在，再加上手里最后攥着的那一件 */
+    kept = secured.concat(loose.length ? [loose[loose.length - 1]] : []);
     mats = 0;
   }
 
-  /* 入库 */
-  let added = 0;
+  /* 入库：重复藏品不再被静默吞掉 —— 带回的强化更高就升级，
+     否则按品质折成材料，玩家至少看得见这一趟没有白跑。 */
+  let added = 0, upgraded = 0, melted = 0, meltMats = 0;
   for(const l of kept){
-    if(!ITEMS[l.id]) continue;
-    if(META.armory[l.id] == null){ META.armory[l.id] = l.plus || 0; added++; }
-    else META.armory[l.id] = Math.max(META.armory[l.id], l.plus || 0);
+    const it = ITEMS[l.id];
+    if(!it) continue;
+    const plus = l.plus || 0;
+    const had = META.armory[l.id];
+    if(had == null){ META.armory[l.id] = plus; added++; }
+    else if(plus > had){ META.armory[l.id] = plus; upgraded++; }
+    else { meltMats += 1 + (it.q || 0); melted++; }
   }
+  mats += meltMats;
 
   if(G.hero.rule === 'nameless') renown = Math.round(renown * 1.4);
   META.renown += renown;
@@ -5679,12 +5743,11 @@ function endRun(kind){
   saveMeta(META);
 
   /* 倒下、堕入阴影、或回头没带走的，都要在结算页列出来。
-     kept 是身前那一截，lost 必须是它之外剩下的那一截，两边不能重叠。 */
-  let lost = [];
-  if(kind === 'retreat') lost = G.loot.slice(kept.length);
-  else if(kind === 'dead') lost = G.loot.slice(0, Math.max(0, G.loot.length - kept.length));
-  else if(kind === 'shadow') lost = G.loot.slice();
-  G.over = { kind, reached, renown, mats, kept, added, lost, echo: buildEcho(kind, reached) };
+     kept 里装着的对象都来自 loot，用引用差集算 lost：收好的排在前面，
+     再按 kept.length 去切 slice 会把账算错。 */
+  const lost = loot.filter(l => kept.indexOf(l) < 0);
+  G.over = { kind, reached, renown, mats, kept, added, upgraded, melted, meltMats,
+             armoryTotal: Object.keys(META.armory).length, lost, echo: buildEcho(kind, reached) };
   G.screen = 'result';
   clearRun();
   render();
@@ -5702,15 +5765,25 @@ function renderResult(){
   const keptHtml = o.kept && o.kept.length
     ? o.kept.map(l=>{
         const it = ITEMS[l.id];
-        return `<span class="fx ${o.kind==='dead'?'bad':'good'}">${it?esc(it.name):l.id}${l.plus?' +'+l.plus:''}</span>`;
+        return `<span class="fx ${o.kind==='dead'?'bad':'good'}">${it?esc(it.name):l.id}${l.plus?' +'+l.plus:''}${l.sec?' · 收好':''}</span>`;
       }).join('')
     : '<span class="fx bad">什么也没带回来</span>';
+
+  /* 入库明细：新增 / 强化 / 重复折材料，逐项写清，不让玩家猜东西去哪了 */
+  const haul = [];
+  if(o.added) haul.push('新藏品 ' + o.added + ' 件');
+  if(o.upgraded) haul.push('强化 ' + o.upgraded + ' 级');
+  if(o.melted) haul.push('重复 ' + o.melted + ' 件折成 ' + o.meltMats + ' 材料');
+  const haulTxt = (o.kept && o.kept.length)
+    ? '<br>入库：' + (haul.length ? haul.join(' · ') : '带回的都已经有了，这次什么也没添上')
+      + '。军械库现有 ' + o.armoryTotal + ' 件。'
+    : '';
 
   const lostHtml = o.lost && o.lost.length
     ? `<p class="note" style="margin-top:14px;margin-bottom:6px">${o.kind==='retreat' ? '留在了身后：' : '留在了荒野里：'}</p>
        <div class="fxlist">${o.lost.map(l=>{
          const it = ITEMS[l.id];
-         return `<span class="fx lost">${it?esc(it.name):l.id}${l.plus?' +'+l.plus:''}</span>`;
+         return `<span class="fx lost">${it?esc(it.name):l.id}${l.plus?' +'+l.plus:''}${l.sec?' · 收好':''}</span>`;
        }).join('')}</div>`
     : '';
 
@@ -5739,16 +5812,20 @@ function renderResult(){
       <div class="fxlist" style="margin-top:9px">${keptHtml}</div>
       ${lostHtml}
       <p class="note">${o.kind==='dead'
-        ? (o.kept && o.kept.length
-            ? '倒下时，你手里还攥着一样东西。其余的留在了荒野里。'
-            : '倒下时，身上的一切都留在了荒野里。')
+        ? (o.kept && o.kept.length > 1
+            ? '倒下时，收好的东西和手里最后攥着的那一件留了下来。其余的留在了荒野里。'
+            : (o.kept && o.kept.length
+                ? '倒下时，你手里还攥着一样东西。其余的留在了荒野里。'
+                : '倒下时，身上的一切都留在了荒野里。'))
         : o.kind==='retreat'
           ? (o.lost && o.lost.length
-              ? '回头路上走得急，只带走了一半。其余的留在了身后。'
+              ? '回头路上走得急：收好的先装进包，其余只带走了一半。'
               : '回头路上走得急，但一样也没落下。')
           : o.kind==='shadow'
-            ? '身上的一切都留在了荒野里。'
-            : '活着带回来的东西已经存入军械库。'}${o.added ? ' 新藏品 ' + o.added + ' 件。' : ''}</p>
+            ? (o.lost && o.lost.some(l=>l.sec)
+                ? '连收好的也没能带回来。身上的一切都留在了荒野里。'
+                : '身上的一切都留在了荒野里。')
+            : '带回来的东西已经存入军械库。'}${haulTxt}</p>
     </div>
 
     ${o.kind==='win' && G.tierId < TIERS.length ? `<p class="note" style="text-align:center;color:var(--gold)">难度 ${G.tierId+1} 已解锁。</p>` : ''}
@@ -5786,6 +5863,9 @@ function loadRun(){
     /* v0.5 新增：旧存档没有这两项，补默认值后刷新即可继续用新机制 */
     if(!Number.isFinite(d.steadyLeft)) d.steadyLeft = 2;
     if(typeof d.shadowResistUsed !== 'boolean') d.shadowResistUsed = false;
+    /* v0.6 新增：旧存档没有「收好」字段，补齐后刷新就能继续用 */
+    if(!Number.isFinite(d.secLeft)) d.secLeft = SEC_LIMIT;
+    if(!Array.isArray(d.loot)) d.loot = [];
     if(d.pending && !Number.isFinite(d.pending.checkBonus)){
       d.pending.checkBonus = Number.isFinite(d.pending.riderBonus) ? d.pending.riderBonus : 0;
     }
