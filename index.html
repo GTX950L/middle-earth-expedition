@@ -104,6 +104,15 @@ h3{font-size:15px;line-height:1.5}
 .maplegend span{display:inline-flex;align-items:center;gap:5px}
 .nextpeek{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center;margin:0 22px;padding:10px 0 14px;border-top:1px dashed var(--line-2);font-size:11.5px;color:var(--ink-2)}
 .nextpeek .npk{font-size:10.5px;letter-spacing:.14em;color:var(--gold)}
+.routebox{margin:0 22px 2px;padding:11px 0 12px;border-top:1px dashed var(--line-2)}
+.routebox .rk{font-size:10.5px;letter-spacing:.14em;color:var(--gold);margin-bottom:8px}
+.ritem{display:flex;align-items:baseline;gap:10px;font-size:12px;color:var(--ink-2);padding:3px 0;flex-wrap:wrap}
+.ritem .rn{font-weight:600;color:var(--ink);min-width:68px}
+.ritem .rh{flex:1;color:var(--ink-3)}
+.ritem .rt{font-family:var(--mono);font-size:11px;color:var(--blood)}
+.ritem .rt.good{color:var(--gold)}
+.steadybox{margin:2px 22px 8px;padding:10px 0 0;border-top:1px dashed var(--line-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.steadybox .sn{font-size:12px;color:var(--ink-2);flex:1;min-width:190px;line-height:1.7}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;border:1px solid}
 .node-g{cursor:pointer}
 .node-g.avail:hover .ring{stroke:#96682c;stroke-width:2}
@@ -279,8 +288,9 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.4
+   中土远征 v0.5
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
+   路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
 
 /* ---------- 0. 工具 ---------- */
@@ -293,14 +303,32 @@ const esc = s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;
 /* ---------- 1. 常量 ---------- */
 const ATTRS = { valor:'勇武', cunning:'机敏', lore:'学识', spirit:'心志' };
 
+/* 每档只写「本档新增」，运行时由 tierMods 从第一档起累加。
+   以前每档只挂自己的 mods，结果第 6 档把 4/5 档的惩罚全丢了，
+   通关率反而比第 4 档高得多 —— 难度曲线是断的。 */
 const TIERS = [
-  { id:1, name:'初次远行', note:'标准规则，无额外修正。', mods:{} },
+  { id:1, name:'初次远行', note:'标准规则，没有额外修正。', mods:{} },
   { id:2, name:'长夜', note:'所有检定 DC +1。', mods:{ dc:1 } },
-  { id:3, name:'补给紧张', note:'补给上限 −1。', mods:{ supply:-1 } },
-  { id:4, name:'阴影紧随', note:'每层一次追踪检定（失败 −2），且路耗 +1。', mods:{ hunt:1, supplyDrain:1 } },
-  { id:5, name:'无援', note:'追踪检定照旧，补给上限再 −1。', mods:{ hunt:1, supply:-1 } },
-  { id:6, name:'终局', note:'无法撤退；所有伤害 +1；抵达终点需通过 DC 16 检定。', mods:{ noRetreat:1, finalDC:16, dmg:1 } }
+  { id:3, name:'补给紧张', note:'在上一档之上，补给上限 −1。', mods:{ supply:-1 } },
+  { id:4, name:'阴影紧随', note:'在上一档之上，进入荒野后每层一次追踪检定（失败 −2），路耗 +1。', mods:{ hunt:1, supplyDrain:1 } },
+  { id:5, name:'无援', note:'在上一档之上，营地与休整的恢复减半（至少留 1 点）。', mods:{ campHalf:1 } },
+  { id:6, name:'终局', note:'在上一档之上，无法撤退、所有伤害 +1；抵达终点需通过 DC 16 检定。', mods:{ noRetreat:1, finalDC:16, dmg:1 } }
 ];
+
+const TIER_FLAGS = ['hunt','noRetreat','campHalf'];
+function tierMods(id){
+  const out = {};
+  for(const t of TIERS){
+    if(t.id > id) break;
+    for(const k in (t.mods || {})){
+      const v = t.mods[k];
+      if(TIER_FLAGS.indexOf(k) >= 0) out[k] = 1;
+      else if(k === 'finalDC') out[k] = Math.max(out[k] || 0, v);
+      else out[k] = (out[k] || 0) + v;
+    }
+  }
+  return out;
+}
 
 /* 阴影：只增不减。唯一的下降途径是特定地点的净化。 */
 const SHADOW_STAGES = [
@@ -3726,6 +3754,18 @@ const NODE_TYPES = {
   treasure: { label:'藏', name:'秘藏', color:'#96682c', fill:'#f6ecd6' }
 };
 
+/* 路径代价：选路不是点一下金环。
+   这张表同时喂给地图路标与 enterNode —— 界面写的和实际扣的必须是同一处，
+   不另写一份文案，免得哪天数值改了说明还在撒谎。 */
+const PATH_COST = {
+  start:     { hint:'从这里出发',                           tag:'启程' },
+  encounter: { renown:1, hint:'有人挡在路上，走过去会有人记得', tag:'声望 +1' },
+  story:     { hint:'会听见一件事，未必需要回答',           tag:'见闻' },
+  camp:      { hint:'能歇一晚，火边把气缓过来',             tag:'休整' },
+  treasure:  { shadow:1, hint:'拿得走，也要留一点在原地',   tag:'阴影 +1' },
+  final:     { hint:'最后一段路',                           tag:'抵达' }
+};
+
 function layerRegion(layer){
   const i = Math.min(ROUTE.length-1, Math.floor(layer / LAYERS_PER_REGION));
   return ROUTE[i];
@@ -3749,17 +3789,20 @@ function genMap(seed){
     layers.push(nodes);
   }
 
-  /* 类型分配：每区至少 1 个营地，起终固定 */
+  /* 类型分配：同一层里尽量不重复，分叉两端才是「两种不同的路」。
+     独立抽样会让 1/4 的岔路两端都是同类型，玩家等于在盲点。 */
+  const TYPE_BAG = [['encounter',36],['story',32],['camp',17],['treasure',15]];
   const byRegion = {};
   for(let i=1;i<L-1;i++){
+    const pool = TYPE_BAG.map(x=>x.slice());
     for(const n of layers[i]){
-      const r = rnd();
-      if(r < 0.36) n.type = 'encounter';
-      else if(r < 0.68) n.type = 'story';
-      else if(r < 0.85) n.type = 'camp';
-      else n.type = 'treasure';
-      const key = n.region;
-      (byRegion[key] = byRegion[key] || []).push(n);
+      const total = pool.reduce((s,p)=>s+p[1],0);
+      let r = rnd()*total, k = 0;
+      for(let j=0;j<pool.length;j++){ r -= pool[j][1]; if(r<=0){ k=j; break; } }
+      n.type = pool[k][0];
+      pool.splice(k,1);
+      if(!pool.length) TYPE_BAG.forEach(x=>pool.push(x.slice()));
+      (byRegion[n.region] = byRegion[n.region] || []).push(n);
     }
   }
   for(const rid of ROUTE){
@@ -3771,22 +3814,28 @@ function genMap(seed){
   layers[0][0].type = 'start';
   layers[L-1][0].type = 'final';
 
-  /* 连线：区间单调 + 跨度约束 */
+  /* 连线：区间单调 + 跨度约束 + 分叉保底。
+     下一层有 ≥2 个节点时，每个节点至少连出两条不同的路；
+     否则六成落脚点只剩「点一下继续」，路线选择名存实亡。 */
   for(let i=0;i<L-1;i++){
     const cur = layers[i], nxt = layers[i+1];
     const m = cur.length, n = nxt.length;
+    const near = (a,t)=>Math.abs(nxt[t].x - a.x);
+    const link = (a,t)=>{ const id = nxt[t].id; if(!a.next.includes(id)) a.next.push(id); };
     cur.forEach((a, j)=>{
       const lo = Math.floor(j*n/m);
       const hi = Math.min(n-1, Math.floor((j+1)*n/m));
       const cands = [];
       for(let t=lo;t<=hi;t++) cands.push(t);
-      let viable = cands.filter(t=>Math.abs(nxt[t].x - a.x) <= 250);
-      if(!viable.length) viable = cands;
-      viable.sort((p,q)=>Math.abs(nxt[q].x-a.x)-Math.abs(nxt[p].x-a.x));
+      let viable = cands.filter(t=>near(a,t) <= 250);
+      if(!viable.length) viable = cands.slice();
+      viable.sort((p,q)=>near(a,p)-near(a,q));
       const k = (viable.length>1 && rnd()<0.5) ? 2 : 1;
-      for(let t=0;t<Math.min(k,viable.length);t++){
-        const id = nxt[viable[t]].id;
-        if(!a.next.includes(id)) a.next.push(id);
+      for(const t of viable.slice(0, Math.min(k, viable.length))) link(a,t);
+      /* 本区间凑不满两条，就从整层按 x 距离补，仍只往下一层走 */
+      if(n >= 2 && a.next.length < 2){
+        const rest = nxt.map((b,t)=>t).sort((p,q)=>near(a,p)-near(a,q));
+        for(const t of rest){ if(a.next.length >= 2) break; link(a,t); }
       }
     });
     nxt.forEach((b, t)=>{
@@ -3870,7 +3919,7 @@ function newGame(heroId, tierId, seed){
   const map = genMap(seed);
   const tf = talentFx();
   const ef = equippedFx(META.loadout || {});
-  const mods = tier.mods || {};
+  const mods = tierMods(tier.id);
 
   const hpMax = hero.hp + tf.hpMax + ef.hpMax;
   const supplyMax = Math.max(3, hero.supply + tf.supplyMax + ef.supplyMax + (mods.supply||0));
@@ -3894,6 +3943,7 @@ function newGame(heroId, tierId, seed){
     walkedList:[], rerolls:0, perLayerLore:false, wardenUsed:false,
     standUsed:false, luckUsed:false, firstCheck:true,
     freeRerolls: tf.rules.extraReroll ? 1 : 0, eventCount:0,
+    steadyLeft:2, shadowResistUsed:false,
     renown:0, materials:0, over:null,
     campHalf: !!mods.campHalf, dcBonus: mods.dc||0, supplyDrain: mods.supplyDrain||0, dmgBonus: mods.dmg||0,
     hunt: !!mods.hunt, noRetreat: !!mods.noRetreat, finalDC: mods.finalDC||0,
@@ -3962,12 +4012,13 @@ function hurt(n){
 function applyFx(fx, ctx){
   if(!fx) return [];
   let f = fx;
-  /* 预留：营地与休整恢复减半（当前 6 档难度均未启用，TIERS 里没有 campHalf 配置） */
   if(f.hp && f.hp < 0 && G.dmgBonus) f = Object.assign({}, f, { hp: f.hp - G.dmgBonus });
+  /* 无援（难度 V 起）：营地与休整的恢复减半，但至少留 1 点 ——
+     用 ceil 时 3 点会变 2 点，跟文案写的「减半」对不上。 */
   if(ctx && ctx.camp && G.campHalf){
     f = Object.assign({}, f);
-    if(f.hp > 0) f.hp = Math.ceil(f.hp / 2);
-    if(f.supply > 0) f.supply = Math.ceil(f.supply / 2);
+    if(f.hp > 0) f.hp = Math.max(1, Math.floor(f.hp / 2));
+    if(f.supply > 0) f.supply = Math.max(1, Math.floor(f.supply / 2));
   }
   /* 老练：营地与休整的恢复额外 +2（只对原本就有恢复的选项生效） */
   if(ctx && ctx.camp && G.rules && G.rules.campBonus){
@@ -4362,13 +4413,88 @@ function recalc(){
 /* ---------- 11. 渲染 ---------- */
 const app = $('app');
 
+/* ---------- 阴影对抗 ---------- */
+/* 代价、可用态、按钮文案、提示都从这一处取，界面不许另写一份 */
+function steadyCost(){
+  const s = G ? (G.shadow || 0) : 0;
+  const left = G && Number.isFinite(G.steadyLeft) ? G.steadyLeft : 2;
+  const deep = s >= 6;
+  const label = '决心 1 + 补给 1' + (deep ? ' + 生命 2' : '');
+  const ok = left > 0 && s >= 2 && G.resolve >= 1 && G.supply >= 1 && G.hp >= (deep ? 3 : 1);
+  let note;
+  if(left <= 0) note = '这一路上你已经把名字念过两遍。再念，也没有人应了。';
+  else if(s < 2) note = '现在还不需要。';
+  else if(!ok) note = '身上拿不出这点东西了。';
+  else note = '停下来，把出发时别人叫你的那个名字念一遍。还剩 ' + left + ' 次。';
+  return { ok, label, note, deep, left };
+}
+
+function doSteady(){
+  const c = steadyCost();
+  if(!c.ok) return;
+  G.resolve -= 1;
+  G.supply -= 1;
+  /* 这是主动付出的代价，不是「受到的伤害」：不走 hurt()，
+     否则点了破阵会把按钮上写明的 2 点生命悄悄减成 1 点。 */
+  if(c.deep) G.hp -= 2;
+  G.steadyLeft = c.left - 1;
+  addShadow(-2);
+  clamp();
+  addLog('记起自己的名字 · 阴影 −2');
+  pushEcho({ t:'steady', name:shadowStage().name, once:true });
+  render();
+}
+
+function renderShadowEnd(){
+  const canResist = !G.shadowResistUsed;
+  app.innerHTML = topbar() + statbar() + `
+    <div class="card pad" style="text-align:center;padding-top:30px">
+      <div style="font-size:11px;letter-spacing:.18em;color:var(--blood);margin-bottom:9px">它的</div>
+      <h2 style="font-family:var(--serif);font-size:21px;font-weight:600">不用再选了</h2>
+      <p class="prose" style="margin-top:14px;line-height:1.9">路还在往前，只是前面已经没有要你去的地方。<br>有人叫过你的名字。你听见了，但要过一会儿才想起来那是在叫谁。</p>
+      <div class="opts" style="text-align:left;margin-top:22px">
+        <button class="opt shadow-opt" id="acceptBtn"><span class="idx">※</span><span class="lbl">不去想了，继续走</span><span class="dc">就这样到终点</span></button>
+        ${canResist ? `<button class="opt" id="resistBtn"><span class="idx">1</span><span class="lbl">把那个名字再说一遍</span><span class="dc">花光决心 · 生命 −3 · 阴影 −3</span></button>` : ''}
+      </div>
+      <p class="note">${canResist
+        ? '花光全部决心、再赔 3 点生命，阴影退回 5，然后接着走。身体撑不住的话，会倒在这里。这一局只有一次。'
+        : '这一局已经说过一次了。'}</p>
+    </div>`;
+  const ab = $('acceptBtn'), rb = $('resistBtn');
+  if(ab) ab.onclick = ()=> endRun('shadow');
+  if(rb) rb.onclick = resistShadow;
+}
+
+function resistShadow(){
+  if(G.shadowResistUsed) return;
+  G.shadowResistUsed = true;
+  G.resolve = 0;
+  /* 同上：终局页写明「3 点生命」，就不该被破阵减免成 2 点。
+     代价按字面扣，撑不住就倒在这里 —— 文案里已经说清了。 */
+  G.hp -= 3;
+  addShadow(-3);
+  clamp();
+  addLog('你把名字又说了一遍。');
+  pushEcho({ t:'resist', once:true });
+  if(G.hp <= 0){ G.screen = 'map'; return endRun('dead'); }
+  G.screen = 'map';
+  render();
+}
+
 function render(){
   if(!G || G.screen === 'title') return renderTitle();
+  /* 阴影到顶不再拖到结算才改判：立刻给一次终局抉择。
+     检定动画中途不打断，等它回到地图再拦；抗争之后若阴影已退，退回地图。 */
+  if(!G.over && G.shadow >= SHADOW_MAX && G.screen !== 'shadowend' && G.screen !== 'check'){
+    G.screen = 'shadowend';
+  }
+  if(G.screen === 'shadowend' && G.shadow < SHADOW_MAX) G.screen = 'map';
   /* 每次状态变化立刻落盘：手机切后台、误刷新、被系统回收都不至于丢进度。
      结算之后不再写盘（endRun 已经 clearRun），避免已结束的一局又被存回来。 */
-  if(!G.over && (G.screen === 'map' || G.screen === 'event' || G.screen === 'check' || G.screen === 'result')){
+  if(!G.over && (G.screen === 'map' || G.screen === 'event' || G.screen === 'check' || G.screen === 'shadowend' || G.screen === 'result')){
     saveRun();
   }
+  if(G.screen === 'shadowend') return renderShadowEnd();
   if(G.screen === 'camp') return renderCamp();
   if(G.screen === 'talents') return renderTalents();
   if(G.screen === 'armory') return renderArmory();
@@ -4463,7 +4589,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.4</div>
+    <div class="eyebrow">文字跑团 · v0.5</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十二程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -4908,6 +5034,26 @@ function renderMap(){
       )).join('　')}</div>`
     : '';
 
+  /* 路标：把这一程每条路的确定代价摊开写，选择发生在信息充分之后。
+     只有真有得选时才显示，只剩一条路时不啰嗦。 */
+  const routeHtml = avail.size >= 2 ? (()=>{
+    const rows = Array.from(avail).map(id=>{
+      const n = map.index[id], t = NODE_TYPES[n.type], pc = PATH_COST[n.type] || {};
+      const tag = pc.shadow ? '阴影 +' + pc.shadow : (pc.renown ? '声望 +' + pc.renown : '无额外代价');
+      const cls = pc.shadow ? 'rt' : (pc.renown ? 'rt good' : 'rh');
+      return `<div class="ritem"><span class="rn">${t.label} · ${t.name}</span>`+
+             `<span class="rh">${esc(pc.hint || '')}</span><span class="${cls}">${tag}</span></div>`;
+    }).join('');
+    return `<div class="routebox"><div class="rk">这一程的 ${avail.size} 条路</div>${rows}</div>`;
+  })() : '';
+
+  /* 稳住：阴影不是单向闸门，玩家能主动花资源把它压回去 */
+  const steadyInfo = steadyCost();
+  const steadyHtml = (G.shadow >= 2) ? `<div class="steadybox">
+      <span class="sn">${esc(shadowStage().name)} · ${esc(steadyInfo.note)}</span>
+      <button class="btn ghost sm" id="steadyBtn" ${steadyInfo.ok ? '' : 'disabled'}>记起自己的名字 · 阴影 −2（${esc(steadyInfo.label)}）</button>
+    </div>` : '';
+
   for(const n of Object.values(map.index)){
     const t = NODE_TYPES[n.type];
     const isAvail = avail.has(n.id), isCur = n.id === G.at, isPast = visited.has(n.id) && !isCur;
@@ -4955,7 +5101,7 @@ function renderMap(){
         <span><i class="dot" style="background:#e6eedd;border-color:#4d6b3a"></i>营 · 休整</span>
         <span><i class="dot" style="background:#f6ecd6;border-color:#96682c"></i>藏 · 秘藏</span>
       </div>
-      ${peekHtml}
+      ${peekHtml}${routeHtml}${steadyHtml}
     </div>
 
     <div class="btnrow mapfoot" style="justify-content:space-between">
@@ -4971,6 +5117,8 @@ function renderMap(){
   });
   const rb = $('retreatBtn');
   if(rb) rb.onclick = ()=> endRun('retreat');
+  const sb = $('steadyBtn');
+  if(sb) sb.onclick = doSteady;
   const sc = document.querySelector('.mapscroll');
   if(sc && sc.scrollWidth > sc.clientWidth + 4){
     const mid = (sc.scrollWidth - sc.clientWidth)/2;
@@ -4988,17 +5136,23 @@ function enterNode(id){
   G.riderUsed = false;
 
   if(node.layer > 0){
-    /* 熟路：认得路，就少走冤枉路（行路消耗 −1，但不倒给补给） */
-    G.supply -= Math.max(0, 1 + (G.supplyDrain||0) - ((G.rules && G.rules.roadSave) || 0));
-    /* 越往东，侵蚀越重 */
+    /* 熟路：认得路，就少走冤枉路（行路消耗 −1，但不倒给补给）。
+       路耗 +1 只作用于荒野段：全程 +1 会让补给上限 5 的局必然饿死，
+       玩家从第 4 程起就只能看着血一格一格掉，没有可做的事。 */
+    const drain = (G.supplyDrain && layerRegion(node.layer) === 'wild') ? G.supplyDrain : 0;
+    G.supply -= Math.max(0, 1 + drain - ((G.rules && G.rules.roadSave) || 0));
+    /* 越往东，侵蚀越重。
+       不再有「到 7 之后每层再 +1」：那是自动滑坡，玩家一进这个区间就必到 8，
+       中间没有任何能做的事。到顶改由专属终局页给一次抉择。 */
     if(layerRegion(node.layer) === 'wild') addShadow(1);
-    if(G.shadow >= 7) addShadow(1);
     if(G.supply <= 0){ hurt(2); addLog('补给耗尽，身体开始垮。'); pushEcho({ t:'hurt', once:true, cause:'supply' }); }
   }
   clamp();
 
-  /* 难度 V：追踪检定 */
-  if(G.hunt && node.layer > 0){
+  /* 阴影紧随（难度 IV 起）：追踪只在荒野段咬人。
+     从第一程就每层扣血会让第四档直接断崖，前三档攒的补给与血量
+     在荒野之前就被磨光，玩家没有可应对的窗口。 */
+  if(G.hunt && node.layer > 0 && layerRegion(node.layer) === 'wild'){
     const rnd = mulberry32(hashStr(G.seed+'|hunt|'+id));
     if(rollD20(rnd) + G.attrs.spirit < effDC(13)){
       hurt(2);
@@ -5012,6 +5166,12 @@ function enterNode(id){
   const prevRegion = layerRegion(G.layer);
   G.layer = node.layer;
   G.at = id;
+
+  /* 兑现地图路标写明的代价。只有险与藏留下痕迹，营地与见闻不额外收费 */
+  const pc = PATH_COST[node.type] || {};
+  if(pc.renown){ G.renown += pc.renown; addLog('险路 · 声望 +' + pc.renown); }
+  if(pc.shadow){ addShadow(pc.shadow); addLog('秘藏 · 阴影 +' + pc.shadow); }
+
   const newRegion = layerRegion(G.layer);
   if(newRegion !== prevRegion){
     addLog('进入 ' + REGIONS[newRegion].name);
@@ -5384,6 +5544,7 @@ function buildEcho(kind, reached){
   const letter = first('letter'), vow = first('vow');
   const region = last('region'), reframe = first('reframe');
   const taken = first('taken'), cost = first('cost'), reroll = first('reroll');
+  const steady = first('steady'), resist = first('resist');
   const gotToken = of('token').filter(e => e.kind === 'got')[0];
   const usedToken = of('token').filter(e => e.kind === 'used')[0];
   const paras = [];
@@ -5412,15 +5573,18 @@ function buildEcho(kind, reached){
      堕入阴影的人记得第一条被划掉的路。 */
   const bias = {
     dead:    { fail:3, gear:2, hurt:1, cost:1 },
-    shadow:  { taken:4, stage:3, reframe:1 },
+    shadow:  { taken:4, stage:3, resist:3, reframe:1 },
     retreat: { region:3, letter:2, reroll:1 },
-    win:     { vow:3, reframe:2, region:1 }
+    win:     { vow:3, resist:3, reframe:2, region:1 }
   }[kind] || {};
   const pool = [];
   const add = (type, base, e, s) => {
     if(e && s) pool.push({ w:base + (bias[type]||0), layer:e.layer || 0, n:pool.length, s });
   };
 
+  if(resist) add('resist', 9, resist, '到顶上那一次，你把名字又说了一遍。');
+  if(steady) add('steady', 8, steady,
+    '第 ' + steady.layer + ' 程你停下来，把出发时别人叫你的名字念了一遍。');
   if(letter && kind !== 'win') add('letter', 9, letter, '内袋里那半页纸还在。上面的名字你到现在还写得出来。');
   if(vow) add('vow', 9, vow, '第 ' + vow.layer + ' 程你立过誓。要走到的地方还在前面。');
   if(firstBreak){
@@ -5619,6 +5783,9 @@ function loadRun(){
     if(!Number.isFinite(d.freeRerolls)) d.freeRerolls = tf.rules.extraReroll ? 1 : 0;
     if(!Number.isFinite(d.eventCount)) d.eventCount = 0;
     if(!Array.isArray(d.echoes)) d.echoes = [];
+    /* v0.5 新增：旧存档没有这两项，补默认值后刷新即可继续用新机制 */
+    if(!Number.isFinite(d.steadyLeft)) d.steadyLeft = 2;
+    if(typeof d.shadowResistUsed !== 'boolean') d.shadowResistUsed = false;
     if(d.pending && !Number.isFinite(d.pending.checkBonus)){
       d.pending.checkBonus = Number.isFinite(d.pending.riderBonus) ? d.pending.riderBonus : 0;
     }

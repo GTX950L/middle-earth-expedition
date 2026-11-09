@@ -3,8 +3,9 @@
    用法：node tests/sim.js
    零依赖。把 index.html 里的 <script> 抽出来放进 mock DOM 里跑：
    1) 数据完整性  2) 阴影机制  3) 规则接线  4) 刷新恢复  5) 可复现性  6) 300 局模拟
-   7) 渲染结构  8) 内容扩容与回响埋点  9) 产物。
-   不启动浏览器，不写网络，不改仓库文件。 */
+   7) 渲染结构  8) 内容扩容与回响埋点  9) 可玩性与平衡  10) 产物。
+   不启动浏览器，不写网络，不改仓库文件。
+   平衡曲线（各难度通关率是否单调）另见 tests/diag.js。 */
 
 const fs = require('fs');
 const path = require('path');
@@ -168,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.4，能完整玩通。', '版本号']
+    ['v0.5，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -514,11 +515,14 @@ section('④ 刷新恢复');
   if (!raw) fail('saveRun 没有写入存档');
   const parsed = JSON.parse(raw);
   delete parsed.echoes;                         // 模拟 v0.2 的旧存档
+  delete parsed.steadyLeft;                     // 模拟 v0.4 及以前：没有阴影对抗字段
+  delete parsed.shadowResistUsed;
   const c2 = makeCtx({ me_run_v2: JSON.stringify(parsed) });
   const G2 = vm.runInContext('G', c2);
   if (!G2 || G2.screen === 'title') fail('刷新后没有接上未结束的一局');
   else if (!Array.isArray(G2.echoes)) fail('旧存档缺少 echoes 字段时没有兼容补齐');
-  else ok('刷新恢复到 ' + G2.screen + '，旧存档 echoes 已补空数组');
+  else if (G2.steadyLeft !== 2 || G2.shadowResistUsed !== false) fail('旧存档没有补齐 v0.5 的阴影对抗字段');
+  else ok('刷新恢复到 ' + G2.screen + '；旧存档 echoes / steadyLeft / shadowResistUsed 均已补齐');
 }
 
 /* ---------- 5/6. 自动模拟 ---------- */
@@ -562,7 +566,8 @@ function fakeTier(G, o) {
   return diff >= 5 ? 'clean' : (diff >= 0 ? 'cost' : 'fail');
 }
 
-const stats = { steps: 0, takenSeen: 0, regionSeen: 0, echoOK: 0, kinds: {}, echoes: new Set(), echoTypes: new Set() };
+const stats = { steps: 0, takenSeen: 0, regionSeen: 0, echoOK: 0, kinds: {}, echoes: new Set(), echoTypes: new Set(),
+  steadyUsed: 0, shadowEnd: 0, resistUsed: 0 };
 
 function runOne(heroId, tierId, seed, wantTrace) {
   vm.runInContext('META = defaultMeta()', ctx);
@@ -574,6 +579,11 @@ function runOne(heroId, tierId, seed, wantTrace) {
 
   while (!G.over && steps++ < 400) {
     if (G.screen === 'map') {
+      /* 偶尔用一次「记起自己的名字」，让主动对抗阴影的链路也进 300 局 */
+      if (G.shadow >= 4 && G.steadyLeft > 0 && drnd() < 0.18) {
+        const c = vm.runInContext('steadyCost()', ctx);
+        if (c.ok) { callC('doSteady'); stats.steadyUsed++; G = getG(); continue; }
+      }
       /* 血量低且本档允许撤退时收手，贴近 README 描述的模拟策略 */
       if (G.hp <= 2 && !G.noRetreat && G.layer >= 2) { F.endRun('retreat'); G = getG(); continue; }
       const cur = G.map.index[G.at];
@@ -600,6 +610,13 @@ function runOne(heroId, tierId, seed, wantTrace) {
       const tier = fakeTier(G, G.pending.opt);
       trace.push('tier:' + tier);
       F.settleCheck(tier, '');
+    } else if (G.screen === 'shadowend') {
+      /* 到顶终局：一半接受、一半抗争，两条分支都要走完 */
+      const resist = drnd() < 0.5;
+      trace.push('shadowend:' + (resist ? 'resist' : 'accept'));
+      stats.shadowEnd++;
+      if (resist) { stats.resistUsed++; callC('resistShadow'); }
+      else F.endRun('shadow');
     } else {
       fail('未知屏幕：' + G.screen + ' @ ' + seed);
       break;
@@ -645,6 +662,7 @@ section('⑥ 300 局自动模拟');
   const tiers = TIERS.map(t => t.id);
   stats.echoOK = 0; stats.kinds = {}; stats.echoes.clear(); stats.steps = 0;
   stats.takenSeen = 0; stats.regionSeen = 0; stats.echoTypes.clear();
+  stats.steadyUsed = 0; stats.shadowEnd = 0; stats.resistUsed = 0;
   const t0 = Date.now();
   for (let i = 0; i < 300; i++) {
     runOne(heroes[i % heroes.length], tiers[(i * 7) % tiers.length], 'SIM-' + i, false);
@@ -653,6 +671,7 @@ section('⑥ 300 局自动模拟');
   ok('结局分布 ' + Object.entries(stats.kinds).map(([k, v]) => k + '=' + v).join(' / '));
   ok('结算回响非空 ' + stats.echoOK + '/300，去重后 ' + stats.echoes.size + ' 种（不是同一段模板复读）');
   ok('出现被夺走选项的事件 ' + stats.takenSeen + ' 次；地区版正文命中 ' + stats.regionSeen + ' 次');
+  ok('阴影到顶触发终局 ' + stats.shadowEnd + ' 次（抗争 ' + stats.resistUsed + ' 次）；主动「记起名字」 ' + stats.steadyUsed + ' 次');
   if (stats.echoTypes.size < 10) fail('300 局里回响埋点只覆盖 ' + stats.echoTypes.size + ' 类（应 ≥10）');
   ok('回响埋点实际覆盖 ' + stats.echoTypes.size + ' 类：' + Array.from(stats.echoTypes).sort().join(' / '));
 }
@@ -818,7 +837,176 @@ section('⑧ 内容扩容与回响埋点');
   ok('once 埋点只记第一次，标记不进存档，层数按 layer+1');
 }
 
-section('⑨ 产物');
+section('⑨ 可玩性与平衡（路线 / 阴影对抗 / 难度）');
+{
+  function pf(store) {
+    const c = makeCtx(store || {});
+    return {
+      c,
+      run: e => vm.runInContext(e, c),
+      call(n, ...a) { c.__a = a; return vm.runInContext(n + '(...__a)', c); },
+      G: () => vm.runInContext('G', c),
+      html: () => vm.runInContext('document.getElementById("app").innerHTML', c)
+    };
+  }
+  const P = pf();
+  const genMap = vm.runInContext('genMap', P.c);
+  const tierMods = vm.runInContext('tierMods', P.c);
+
+  /* 9.1 分叉保底 + 层内类型互异（通向唯一终点的那一层除外） */
+  let noFork = 0, sameType = 0, counted = 0;
+  for (let i = 0; i < 200; i++) {
+    const map = genMap('FORK-' + i);
+    for (let li = 0; li < map.layers.length - 1; li++) {
+      if (map.layers[li + 1].length < 2) continue;
+      for (const n of map.layers[li]) {
+        counted++;
+        if (n.next.length < 2) noFork++;
+        const ts = n.next.map(id => map.index[id].type);
+        if (ts.length > 1 && ts.every(t => t === ts[0])) sameType++;
+      }
+    }
+    const errs = vm.runInContext('validateMap(__m)', Object.assign(P.c, { __m: map }));
+    if (errs.length) fail('地图连通性校验失败：' + errs.slice(0, 2).join(' / '));
+  }
+  if (noFork) fail('200 张图里仍有 ' + noFork + ' 个节点只给一条路');
+  if (sameType) fail('200 张图里仍有 ' + sameType + ' 处分叉两端同类型');
+  ok('200 张图 / ' + counted + ' 个分叉节点：全部 ≥2 条路、两端类型互异、连通校验通过');
+
+  /* 9.2 路径代价：路标写的，进节点就必须兑现 */
+  function enterType(type, seed, maxLayer) {
+    const h = pf();
+    h.run('META = defaultMeta()');
+    h.call('newGame', 'ranger', 1, seed);
+    const found = h.run('(function(){var idx=G.map.index;for(var k in idx){var n=idx[k];' +
+      'if(n.type==="' + type + '"&&n.layer>0&&n.layer<' + (maxLayer || 4) + '){for(var p in idx){' +
+      'if(idx[p].next&&idx[p].next.indexOf(n.id)>=0)return n.id+"|"+p;}}}return null;})()');
+    if (!found) return null;
+    const parts = found.split('|');
+    h.run('G.at=' + JSON.stringify(parts[1]) + '; G.layer=G.map.index[G.at].layer; ' +
+          'G.screen="map"; G.shadow=0; G.renown=0; G.supply=99; G.supplyMax=99; G.hp=99; G.hpMax=99;');
+    h.call('enterNode', parts[0]);
+    return h.G();
+  }
+  const goEnc = enterType('encounter', 'PATH-E', 4);
+  const goTre = enterType('treasure', 'PATH-T', 4);
+  const goSto = enterType('story', 'PATH-S', 4);
+  if (!goEnc || !goTre || !goSto) fail('测试地图里找不到可进入的险 / 藏 / 闻节点');
+  else {
+    if (goEnc.renown !== 1 || goEnc.shadow !== 0) fail('进「险」没有兑现声望 +1');
+    if (goTre.shadow !== 1 || goTre.renown !== 0) fail('进「藏」没有兑现阴影 +1');
+    if (goSto.renown !== 0 || goSto.shadow !== 0) fail('进「闻」不该有额外代价');
+    ok('路径代价兑现：险 声望 +1 / 藏 阴影 +1 / 闻 无；与 PATH_COST 同源');
+  }
+  const hint = pf();
+  hint.run('META = defaultMeta()');
+  hint.call('newGame', 'ranger', 1, 'HINT');
+  hint.run('G.screen="map"; G.shadow=4;');
+  hint.call('renderMap');
+  const hintHtml = hint.html();
+  if (!/这一程的 \d+ 条路/.test(hintHtml)) fail('地图页没有渲染路标提示条');
+  if (!/声望 \+1|阴影 \+1|无额外代价/.test(hintHtml)) fail('路标没有写出确定代价');
+  if (!/记起自己的名字/.test(hintHtml)) fail('阴影 ≥2 时地图页没有稳住按钮');
+  if (/undefined|NaN/.test(hintHtml)) fail('地图页渲染含脏值');
+  const pc = vm.runInContext('PATH_COST', P.c);
+  if (pc.encounter.tag !== '声望 +1' || pc.treasure.tag !== '阴影 +1') fail('PATH_COST 的 tag 与路标约定不一致');
+  ok('地图页：路标条列出每条路的确定代价，稳住按钮与代价文案同源，无脏值');
+
+  /* 9.3 到 7 不再自动滑坡（旧代码会在荒野 +1 之后再 +1） */
+  const slide = pf();
+  slide.run('META = defaultMeta()');
+  slide.call('newGame', 'ranger', 1, 'SLIDE');
+  const wildNode = slide.run('(function(){var idx=G.map.index;for(var k in idx){var n=idx[k];' +
+    'if(n.type!=="treasure"&&n.layer>=9&&n.layer<=10){for(var p in idx){' +
+    'if(idx[p].next&&idx[p].next.indexOf(n.id)>=0&&idx[p].layer>=9)return n.id+"|"+p;}}}return null;})()');
+  if (!wildNode) ok('测试地图里没有荒野内相邻的非秘藏节点，滑坡用例跳过');
+  else {
+    const w = wildNode.split('|');
+    slide.run('G.at=' + JSON.stringify(w[1]) + '; G.layer=G.map.index[G.at].layer; G.screen="map"; ' +
+              'G.shadow=6; G.supply=99; G.supplyMax=99; G.hp=99; G.hpMax=99;');
+    slide.call('enterNode', w[0]);
+    if (slide.G().shadow !== 7) fail('阴影 6 进荒野后应为 7，实测 ' + slide.G().shadow + '（死亡螺旋没拆干净）');
+    else ok('阴影 6 进荒野只 +1 → 7；≥7 的自动追加已移除');
+  }
+
+  /* 9.4 主动「记起自己的名字」：代价随阴影上升、次数用完即止 */
+  const st = pf();
+  st.run('META = defaultMeta()');
+  st.call('newGame', 'ranger', 1, 'STEADY');
+  st.run('G.shadow=5; G.resolve=3; G.supply=3; G.hp=8; G.screen="map";');
+  let c = st.run('steadyCost()');
+  if (!c.ok || c.deep || !/决心 1 \+ 补给 1/.test(c.label)) fail('中阴影的稳住代价不对');
+  st.call('doSteady');
+  let g = st.G();
+  if (g.shadow !== 3 || g.resolve !== 2 || g.supply !== 2 || g.steadyLeft !== 1) fail('稳住没有按代价扣资源 / 降阴影');
+  st.run('G.shadow=7; G.resolve=3; G.supply=3; G.hp=8;');
+  c = st.run('steadyCost()');
+  if (!c.deep || !/生命 2/.test(c.label)) fail('高阴影没有额外收 2 点生命');
+  st.call('doSteady');
+  g = st.G();
+  if (g.shadow !== 5 || g.hp !== 6 || g.steadyLeft !== 0) fail('高阴影稳住的数值不对');
+  if (st.run('steadyCost()').ok) fail('两次用完仍可再稳住');
+  st.run('G.steadyLeft=2; G.shadow=1; G.resolve=3; G.supply=3;');
+  if (st.run('steadyCost()').ok) fail('阴影 <2 时不该允许浪费一次稳住');
+  ok('稳住：中阴影 −2 / 高阴影多赔 2 生命 / 每局 2 次 / 低阴影禁用');
+
+  /* 9.4b 写明的代价不能被「破阵」减免：那是主动付出，不是受到的伤害 */
+  const dr = pf();
+  dr.run('META = defaultMeta(); META.talents = ["v7"];');
+  dr.call('newGame', 'ranger', 1, 'DRAIN');
+  dr.run('G.shadow=7; G.resolve=3; G.supply=3; G.hp=10; G.screen="map";');
+  dr.call('doSteady');
+  if (dr.G().hp !== 8) fail('破阵把「稳住」写明的 2 点生命减成了 1 点');
+  dr.run('G.screen="map"; G.shadow=8;');
+  dr.call('render');
+  dr.run('G.resolve=4; G.hp=10;');
+  dr.call('resistShadow');
+  if (dr.G().hp !== 7) fail('破阵把终局抗争写明的 3 点生命减成了 2 点');
+  ok('主动代价不走伤害减免：破阵点亮时，稳住仍 −2 生命、抗争仍 −3 生命');
+
+  /* 9.5 到顶终局：即时给抉择，抗争只一次，接受即堕影 */
+  const en = pf();
+  en.run('META = defaultMeta()');
+  en.call('newGame', 'ranger', 1, 'END');
+  en.run('G.screen="map"; G.shadow=8;');
+  en.call('render');
+  if (en.G().screen !== 'shadowend') fail('阴影到顶没有立刻进入终局页');
+  const endHtml = en.html();
+  if (!/不去想了，继续走/.test(endHtml) || !/把那个名字再说一遍/.test(endHtml)) fail('终局页缺少接受 / 抗争两个选项');
+  if (!/阴影退回 5/.test(endHtml) || !/生命 −3/.test(endHtml)) fail('终局页没有把抗争的代价与收益都写明');
+  en.run('G.resolve=4; G.hp=10;');
+  en.call('resistShadow');
+  g = en.G();
+  if (g.shadow !== 5 || g.resolve !== 0 || g.hp !== 7 || g.screen !== 'map' || !g.shadowResistUsed)
+    fail('抗争没有按「花光决心 + 3 生命 / 阴影 −3」兑现');
+  en.run('G.shadow=8; G.screen="map";');
+  en.call('render');
+  if (/把那个名字再说一遍/.test(en.html())) fail('抗争不该有第二次');
+  en.call('endRun', 'shadow');
+  if (en.G().over.kind !== 'shadow') fail('接受终局没有落到堕影结局');
+  ok('到顶终局：即时拦截、抗争一次、第二次只给接受、接受落堕影结局');
+
+  /* 9.6 难度累积：第 6 档要带上 2/3/4/5 档的全部修正 */
+  const m6 = tierMods(6);
+  if (m6.dc !== 1 || m6.supply !== -1 || m6.supplyDrain !== 1 || m6.finalDC !== 16 || m6.dmg !== 1 ||
+      !m6.hunt || !m6.campHalf || !m6.noRetreat) fail('tierMods(6) 没有继承前面各档');
+  const t6 = pf();
+  t6.run('META = defaultMeta()');
+  t6.call('newGame', 'ranger', 6, 'TIER6');
+  const g6 = t6.G();
+  if (g6.dcBonus !== 1 || !g6.hunt || !g6.campHalf || !g6.noRetreat || g6.finalDC !== 16 ||
+      g6.dmgBonus !== 1 || g6.supplyDrain !== 1) fail('第 6 档局内状态没接上累积修正');
+  t6.run('G.hp=5;');
+  t6.call('applyFx', { hp: 3 }, { camp: true });
+  if (t6.G().hp !== 6) fail('无援的营地恢复减半不是「3 → 1」');
+  const t1 = pf();
+  t1.run('META = defaultMeta()');
+  t1.call('newGame', 'ranger', 1, 'TIER1');
+  if (t1.G().dcBonus || t1.G().hunt || t1.G().campHalf) fail('第 1 档不该带任何高难修正');
+  ok('六档难度从 1 起累积：6 档含 DC / 补给 / 追踪 / 荒野路耗 / 恢复减半 / 禁退 / 终局 DC / 伤害；1 档全无');
+}
+
+section('⑩ 产物');
 ok('index.html ' + (fs.statSync(HTML_PATH).size / 1024).toFixed(1) + ' KB / ' + html.split('\n').length + ' 行');
 ok('总层数 ' + TOTAL_LAYERS + '，装备 ' + Object.keys(ITEMS).length + ' 件，出身 ' + HEROES.length + ' 个，难度 ' + TIERS.length + ' 档');
 
