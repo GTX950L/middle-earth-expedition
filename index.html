@@ -314,7 +314,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.9
+   中土远征 v0.10
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -2400,6 +2400,60 @@ const EVENTS = [
     ] }
 ];
 
+/* 闲事的余味：选完之后，下一程遇到普通事件时在正文末尾多一句。
+   它不改数值、不进回响，只让「刚才那件事」跟到下一步。
+   按选项分开写，因为收下苹果和没要苹果，包里的事不一样。 */
+const IDLE_AFTER = {
+  idle_dog: [
+    '手上还有一点被舔过的湿意。走了一段才干。',
+    '那条黄狗没有跟上来。你回头看过两次。'
+  ],
+  idle_bird: [
+    '「今天天气不错」在脑子里响了一下。你有点想笑。',
+    '「走吧」这两个字还在耳朵里。你走快了一点。'
+  ],
+  idle_sheep: [
+    '手上还留着羊毛的触感。有点油。',
+    '那个苹果在包里。你没有立刻吃。'
+  ],
+  idle_shoes: [
+    '你少了一块饼。走起来反而轻。',
+    '那双鞋还摆在路边。你没有再想它，但它一直在。'
+  ],
+  idle_stone: [
+    '那张侧脸还在。你换个角度想它，就不像了。',
+    '那个凹坑的位置你记住了。不知道为什么记住了。'
+  ],
+  idle_rain: [
+    '衣服干了一半。另一半贴在身上，走起来有点凉。',
+    '路好走了。你多走了半程，鞋底沾的泥也少。'
+  ],
+  idle_song: [
+    '那两句调子还在。走着走着，你发现自己哼出来了。',
+    '他笑的那一声比歌记得清楚。'
+  ],
+  idle_porridge: [
+    '锅底那层糊的没有刷干净。再煮东西会有味道。',
+    '新煮的粥很淡。你吃完，把锅刷干净了。'
+  ],
+  idle_stars: [
+    '天还晴着。你没有再抬头。',
+    '五十几这个数字留在脑子里。你不知道它有什么用。'
+  ],
+  idle_storyswap: [
+    '那个故事你记住了一半。另一半怎么想也想不起来。',
+    '他自己讲完，笑了。你不知道他笑什么。'
+  ],
+  idle_button: [
+    '扣子补得有点歪。你摸过两次，每次都摸到那个歪的地方。',
+    '衣襟又松了。你没有再掖。'
+  ],
+  idle_apple: [
+    '包里还有两片苹果。你摸了摸，没有吃。',
+    '她坐在门口嚼苹果的样子还在。你走快了一点。'
+  ]
+};
+
 /* ============================================================
    叙事文本层
    EVENTS 里保留的是结构化短文本，作为兜底与快速预览；
@@ -4395,6 +4449,7 @@ function newGame(heroId, tierId, seed){
     shadow:0, vow:null, vowLayer:0, costsTaken:[], tokens:[], groupCount:{},
     thread: makeThread(seed),
     companion:null, companionMet:false, companionLeft:null,
+    afterglow:null,
     map, at:map.layers[0][0].id, layer:0,
     screen:'map', event:null, pending:null, log:[],
     walkedList:[], rerolls:0, perLayerLore:false, wardenUsed:false,
@@ -4697,6 +4752,19 @@ function injectCompanionOption(ev){
       ok:{ text:def.use }
     }])
   });
+}
+
+/* 余味：上一程那件小事留下的一句，挂在下一件普通事件末尾，只出现一次。
+   私事、同行者、秘藏、启程与终点都不接 —— 那些时刻不该被人打岔。 */
+function afterglowVariant(ev){
+  const ag = G && G.afterglow;
+  if(!ag || !ag.text || !ev) return ev;
+  const id = String(ev.id || '');
+  if(id.indexOf('__') === 0 || id.indexOf('thread_') === 0 || id.indexOf('companion_') === 0 || id.indexOf('r_L') === 0) return ev;
+  if(!(G.layer > ag.layer)) return ev;
+  const out = Object.assign({}, ev, { text: ev.text + '\n\n' + ag.text });
+  G.afterglow = null;
+  return out;
 }
 
 function injectObserveOption(ev){
@@ -5233,7 +5301,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.9</div>
+    <div class="eyebrow">文字跑团 · v0.10</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十二程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -5875,6 +5943,7 @@ function enterNode(id){
   view = noteTaken(takeGentleOptions(view));
   view = injectObserveOption(view);
   view = injectCompanionOption(view);
+  view = afterglowVariant(view);
   G.screen = 'event';
   G.event = shadowVariant(view);
   G.pending = null;
@@ -6024,6 +6093,12 @@ function chooseOption(o){
       pushEcho({ t:'companion', kind:'left', name:cdef.name });
       G.companion = null;
     }
+  }
+  /* 闲事的余味：按选的那一条记下对应的一句，下一程挂在普通事件后面 */
+  if(G.event && String(G.event.id).indexOf('idle_') === 0){
+    const afters = IDLE_AFTER[G.event.id];
+    const idx = G.event.options.indexOf(o);
+    if(afters && idx >= 0 && afters[idx]) G.afterglow = { text:afters[idx], layer:G.layer };
   }
   if(o.consume === 'token' && o.need && o.need.token){
     const tk = TOKENS[o.need.token];
@@ -6597,6 +6672,8 @@ function loadRun(){
     if(d.companion === undefined) d.companion = null;
     if(d.companionMet !== true) d.companionMet = false;
     if(d.companionLeft === undefined) d.companionLeft = null;
+    /* v0.10：旧档没有「余味」，按没有处理 */
+    if(d.afterglow === undefined) d.afterglow = null;
     if(d.pending && !Number.isFinite(d.pending.checkBonus)){
       d.pending.checkBonus = Number.isFinite(d.pending.riderBonus) ? d.pending.riderBonus : 0;
     }

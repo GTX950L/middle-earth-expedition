@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.9，能完整玩通。', '版本号']
+    ['v0.10，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -532,6 +532,7 @@ section('④ 刷新恢复');
   delete parsed.companion;                      // 模拟 v0.7 及以前：没有同行者
   delete parsed.companionMet;
   delete parsed.companionLeft;
+  delete parsed.afterglow;                      // 模拟 v0.9 及以前：没有余味
   const c2 = makeCtx({ me_run_v2: JSON.stringify(parsed) });
   const G2 = vm.runInContext('G', c2);
   if (!G2 || G2.screen === 'title') fail('刷新后没有接上未结束的一局');
@@ -540,7 +541,8 @@ section('④ 刷新恢复');
   else if (G2.secLeft !== 2 || !Array.isArray(G2.loot)) fail('旧存档没有补齐 v0.6 的 secLeft / loot');
   else if (G2.thread !== null) fail('旧存档没有把 thread 补成 null');
   else if (G2.companion !== null || G2.companionMet !== false || G2.companionLeft !== null) fail('旧存档没有补齐 v0.8 的同行者字段');
-  else ok('刷新恢复到 ' + G2.screen + '；旧档 echoes / steadyLeft / shadowResistUsed / secLeft / thread / companion 均已补齐');
+  else if (G2.afterglow !== null) fail('旧存档没有把 afterglow 补成 null');
+  else ok('刷新恢复到 ' + G2.screen + '；旧档 echoes / steadyLeft / shadowResistUsed / secLeft / thread / companion / afterglow 均已补齐');
 }
 
 /* ---------- 5/6. 自动模拟 ---------- */
@@ -1436,6 +1438,39 @@ section('⑮ 路上有些不必赢也不必输的事');
   if (!high.startsWith(low) || high.length <= low.length) fail('阴影注脚没有追加在正文之后');
   vm.runInContext('G.shadow = 0', ctx);
   ok('12 条闲事：两个选项、不掷骰、至少一条不吃亏、3 条阴影注脚只追加不改正文');
+
+  /* 15.2 余味：24 句按选项分开，只挂一次，特殊事件不接也不消耗 */
+  const afterMap = get('IDLE_AFTER');
+  if (Object.keys(afterMap).length !== idles.length) fail('余味表与闲事数量不一致');
+  for (const e of idles) {
+    const arr = afterMap[e.id];
+    if (!Array.isArray(arr) || arr.length !== e.options.length) fail(e.id + ' 的余味条数与选项数不符');
+    if (arr.some(s => typeof s !== 'string' || !s.trim())) fail(e.id + ' 有余味为空');
+  }
+  vm.runInContext('META = defaultMeta(); newGame("ranger", 1, "AFTER-1"); G.screen = "map"; ' +
+    'G.event = {id:"idle_apple", title:"一把晒干的苹果", type:"story", text:"正文", ' +
+    'options:[{label:"收下", fx:{supply:1}, ok:{text:"y"}},{label:"不用", fx:{resolve:1}, ok:{text:"z"}}]}; ' +
+    'G.layer = 2; G.screen = "event";', ctx);
+  const opt0 = vm.runInContext('G.event.options[0]', ctx);
+  callC('chooseOption', opt0);
+  const ag = get('G').afterglow;
+  if (!ag || !ag.text.includes('包里还有两片苹果')) fail('选完闲事没有记下对应的余味');
+
+  vm.runInContext('G.layer = 3', ctx);
+  const base = { id:'idle_dog', type:'story', region:'shire', text:'正文', options:[{ label:'a' }] };
+  const vw = callC('afterglowVariant', base);
+  if (!vw.text.includes('包里还有两片苹果')) fail('余味没有挂到下一程正文');
+  if (get('G').afterglow !== null) fail('余味出现后没有清空');
+  if (callC('afterglowVariant', base).text !== base.text) fail('余味出现了第二次');
+
+  vm.runInContext('G.afterglow = {text:"不该出现", layer:2}; G.layer = 3', ctx);
+  for (const id of ['thread_word_0','companion_meet','__final','r_L3_x']) {
+    if (callC('afterglowVariant', { id, text:'正文', options:[] }).text !== '正文')
+      fail(id + ' 不该接余味');
+  }
+  if (get('G').afterglow === null) fail('特殊事件不应消耗余味');
+  vm.runInContext('G.afterglow = null', ctx);
+  ok('余味：24 句按选项分开、只挂一次、私事 / 同行者 / 结果页 / 终点都不接也不消耗');
 }
 
 section('⑯ 产物');
