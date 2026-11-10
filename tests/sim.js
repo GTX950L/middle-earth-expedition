@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.12，能完整玩通。', '版本号']
+    ['v0.13，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -285,6 +285,23 @@ section('③ 规则接线（天赋 / 出身 / 难度）');
     }
   }
   ok(wired + ' 条天赋 rule / extra 键全部接进局内规则表');
+
+  /* 3.1b 行路三条规则的行为：结伴 / 归途 / 老练旅人 */
+  const road = started(['r3']);
+  road.run('G.companionMet = false; G.companion = null; ' +
+    'G.event = {id:"companion_meet", companionId:"hunter", options:[]}; G.layer=3; G.screen="event";');
+  road.call('chooseOption', { label:'让他跟着', companion:'join', ok:{ text:'x' } });
+  if (!road.G().companion || road.G().companion.trust !== 3) fail('结伴没有让同行者多一格信任');
+  if (road.run('companionBar()').indexOf('●'.repeat(3)) < 0) fail('结伴后同行条没有三格');
+
+  const home = started(['r3','r6']);
+  home.run('G.layer=5; G.hp=6; G.renown=0;');
+  home.call('endRun', 'retreat');
+  if (home.G().over.renown !== 36) fail('归途没有保住撤退声望（应 36，实测 ' + home.G().over.renown + '）');
+
+  const steadyX = started(['r7']);
+  if (steadyX.G().steadyLeft !== 4) fail('老练旅人没有多给一次稳住');
+  ok('行路三规则：结伴多一格信任、归途不扣撤退声望、老练旅人多一次稳住');
 
   /* 3.2 数值类天赋在开局属性上生效 */
   const b = started([]).G();
@@ -474,7 +491,29 @@ section('③ 规则接线（天赋 / 出身 / 难度）');
   if (dw.call('forgeCost', 2) !== 3) fail('非矮人锻造被误判为半价');
   const dwGame = started([], 'dwarf');
   if (dwGame.run('META.lastHero') !== 'dwarf') fail('用矮人开局没有记下 lastHero');
-  ok('8 个出身规则全部生效（含矮人锻造半价按局外 lastHero 判定）');
+
+  /* 3.13b 新增四出身：布理营地 / 铁匠恢复 / 信使重掷 / 守夜挡影 */
+  const br = started([], 'bree');
+  br.run('G.resolve = 1;');
+  br.call('applyFx', { hp:1 }, { camp:true });
+  if (br.G().resolve !== 2) fail('布理人营地没有额外 +1 决心');
+
+  const sm = started([], 'smith');
+  sm.run('G.hp = 5;');
+  sm.call('applyFx', { hp:2 }, { camp:true });
+  if (sm.G().hp !== 9) fail('铁匠营地没有额外恢复 2 点（应 9，实测 ' + sm.G().hp + '）');
+
+  const co = started([], 'courier');
+  if (co.G().freeRerolls !== 1) fail('信使没有多一次免费重掷');
+
+  const wa = started([], 'watcher');
+  wa.run('G.shadow = 5;');
+  wa.call('addShadow', 1);
+  if (wa.G().shadow !== 5 || !wa.G().shadowGuardUsed) fail('守夜人没有挡住第一次到 6');
+  wa.call('addShadow', 1);
+  if (wa.G().shadow !== 6) fail('守夜人挡了不止一次');
+
+  ok('12 个出身规则全部生效（含布理营地 / 铁匠恢复 / 信使重掷 / 守夜挡影）');
 
   /* 3.14 难度 mods 真的接到局内状态 */
   const t1 = started([], 'ranger', 1).G();
@@ -537,7 +576,7 @@ section('④ 刷新恢复');
   const G2 = vm.runInContext('G', c2);
   if (!G2 || G2.screen === 'title') fail('刷新后没有接上未结束的一局');
   else if (!Array.isArray(G2.echoes)) fail('旧存档缺少 echoes 字段时没有兼容补齐');
-  else if (G2.steadyLeft !== 2 || G2.shadowResistUsed !== false) fail('旧存档没有补齐 v0.5 的阴影对抗字段');
+  else if (G2.steadyLeft !== vm.runInContext('STEADY_LIMIT', c2) || G2.shadowResistUsed !== false) fail('旧存档没有补齐 v0.5 的阴影对抗字段');
   else if (G2.secLeft !== 2 || !Array.isArray(G2.loot)) fail('旧存档没有补齐 v0.6 的 secLeft / loot');
   else if (G2.thread !== null) fail('旧存档没有把 thread 补成 null');
   else if (G2.companion !== null || G2.companionMet !== false || G2.companionLeft !== null) fail('旧存档没有补齐 v0.8 的同行者字段');
@@ -966,13 +1005,15 @@ section('⑨ 可玩性与平衡（路线 / 阴影对抗 / 难度）');
   if (pc.encounter.tag !== '声望 +1' || pc.treasure.tag !== '阴影 +1') fail('PATH_COST 的 tag 与路标约定不一致');
   ok('地图页：路标条列出每条路的确定代价，稳住按钮与代价文案同源，无脏值');
 
-  /* 9.3 到 7 不再自动滑坡（旧代码会在荒野 +1 之后再 +1） */
+  /* 9.3 到 7 不再自动滑坡（旧代码会在荒野 +1 之后再 +1）。
+     取「父节点和目标节点都在荒野」的相邻节点，避开跨区进荒野额外 +2 的干扰。 */
   const slide = pf();
   slide.run('META = defaultMeta()');
   slide.call('newGame', 'ranger', 1, 'SLIDE');
-  const wildNode = slide.run('(function(){var idx=G.map.index;for(var k in idx){var n=idx[k];' +
-    'if(n.type!=="treasure"&&n.layer>=9&&n.layer<=10){for(var p in idx){' +
-    'if(idx[p].next&&idx[p].next.indexOf(n.id)>=0&&idx[p].layer>=9)return n.id+"|"+p;}}}return null;})()');
+  const wildStart = slide.run('LAYERS_PER_REGION * 2');
+  const wildNode = slide.run('(function(){var idx=G.map.index;var start=' + wildStart + ';for(var k in idx){var n=idx[k];' +
+    'if(n.type!=="treasure"&&n.layer>=start&&n.layer<=start+1){for(var p in idx){' +
+    'if(idx[p].next&&idx[p].next.indexOf(n.id)>=0&&idx[p].layer>=start)return n.id+"|"+p;}}}return null;})()');
   if (!wildNode) ok('测试地图里没有荒野内相邻的非秘藏节点，滑坡用例跳过');
   else {
     const w = wildNode.split('|');
@@ -987,22 +1028,27 @@ section('⑨ 可玩性与平衡（路线 / 阴影对抗 / 难度）');
   const st = pf();
   st.run('META = defaultMeta()');
   st.call('newGame', 'ranger', 1, 'STEADY');
+  const ST = st.run('STEADY_LIMIT');
   st.run('G.shadow=5; G.resolve=3; G.supply=3; G.hp=8; G.screen="map";');
   let c = st.run('steadyCost()');
   if (!c.ok || c.deep || !/决心 1 \+ 补给 1/.test(c.label)) fail('中阴影的稳住代价不对');
+  if (st.G().steadyLeft !== ST) fail('稳住初始次数不是 ' + ST);
   st.call('doSteady');
   let g = st.G();
-  if (g.shadow !== 3 || g.resolve !== 2 || g.supply !== 2 || g.steadyLeft !== 1) fail('稳住没有按代价扣资源 / 降阴影');
+  if (g.shadow !== 3 || g.resolve !== 2 || g.supply !== 2 || g.steadyLeft !== ST - 1) fail('稳住没有按代价扣资源 / 降阴影');
   st.run('G.shadow=7; G.resolve=3; G.supply=3; G.hp=8;');
   c = st.run('steadyCost()');
   if (!c.deep || !/生命 2/.test(c.label)) fail('高阴影没有额外收 2 点生命');
   st.call('doSteady');
   g = st.G();
-  if (g.shadow !== 5 || g.hp !== 6 || g.steadyLeft !== 0) fail('高阴影稳住的数值不对');
-  if (st.run('steadyCost()').ok) fail('两次用完仍可再稳住');
-  st.run('G.steadyLeft=2; G.shadow=1; G.resolve=3; G.supply=3;');
+  if (g.shadow !== 5 || g.hp !== 6 || g.steadyLeft !== ST - 2) fail('高阴影稳住的数值不对');
+  /* 还剩最后一次：再念一遍就该到底，之后不能再点 */
+  st.call('doSteady');
+  if (st.G().steadyLeft !== 0) fail('最后一次稳住没有扣次数');
+  if (st.run('steadyCost()').ok) fail(ST + ' 次用完仍可再稳住');
+  st.run('G.steadyLeft=' + ST + '; G.shadow=1; G.resolve=3; G.supply=3;');
   if (st.run('steadyCost()').ok) fail('阴影 <2 时不该允许浪费一次稳住');
-  ok('稳住：中阴影 −2 / 高阴影多赔 2 生命 / 每局 2 次 / 低阴影禁用');
+  ok('稳住：中阴影 −2 / 高阴影多赔 2 生命 / 每局 ' + ST + ' 次 / 低阴影禁用');
 
   /* 9.4b 写明的代价不能被「破阵」减免：那是主动付出，不是受到的伤害 */
   const dr = pf();
@@ -1228,7 +1274,7 @@ section('⑬ 这一趟有个缘由');
   if (alive.length < 2 || alive.some(o => o.thread !== 'push')) fail('划掉之后没有留下两条推进的路');
   ok('阴影 ≥4：只划掉「放下」，两条付代价的推进路仍在');
 
-  /* 13.5 推满三段：办成 → 结算声望 / 材料 / 回响 / 结算页都有落点 */
+  /* 13.5 推满全程：办成 → 结算声望 / 材料 / 回响 / 结算页都有落点 */
   const pushStep = (i, seed) => {
     const node = { id:'tp' + i, layer:STEPS[i], type:'story', region:'shire' };
     const ev = callC('threadEvent', node);
@@ -1238,9 +1284,9 @@ section('⑬ 这一趟有个缘由');
     callC('chooseOption', ev.options.find(o => o.thread === 'push'));
   };
   freshThread('THREAD-DONE');
-  for (let i = 0; i < 3; i++) pushStep(i);
+  for (let i = 0; i < STEPS.length; i++) pushStep(i);
   let g = getG(), def = THREADS.find(t => t.id === g.thread.id);
-  if (!g.thread.done || g.thread.pushes !== 3 || g.thread.step !== 3) fail('推进三段没有办成');
+  if (!g.thread.done || g.thread.pushes !== STEPS.length || g.thread.step !== STEPS.length) fail('推进全程没有办成');
   if (g.thread.firstLayer !== STEPS[0] + 1) fail('firstLayer 记错了程数');
   callC('endRun', 'retreat');
   let o = getG().over;
@@ -1249,7 +1295,7 @@ section('⑬ 这一趟有个缘由');
   if (!o.echo.includes(def.echoDone)) fail('回响没写办成的落点');
   const rDone = vm.runInContext('renderResult(); document.getElementById("app").innerHTML', ctx);
   if (!rDone.includes(def.name) || /undefined|NaN/.test(rDone)) fail('结算页没有私事落点或含脏值');
-  ok('推满三段：办成 → 声望 / 材料 / 回响 / 结算页四处都有落点');
+  ok('推满全程：办成 → 声望 / 材料 / 回响 / 结算页四处都有落点');
 
   /* 13.6 放下：没有奖励，也不再出现后续段 */
   freshThread('THREAD-DROP');

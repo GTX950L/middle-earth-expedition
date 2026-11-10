@@ -337,7 +337,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.12
+   中土远征 v0.13
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -456,7 +456,7 @@ const TOKENS = {
    选项只问「愿意为它付什么」，不掷骰 —— 私事不该由骰子决定。
    标了 gentle 的「放下」会被阴影划掉：越深，越难把一件事放下。
    正文里的 threadMemory() 会把这一局真实走过的事写进来，不是套模板。 */
-const THREAD_STEPS = [1, 4, 7];
+const THREAD_STEPS = [1, 5, 9, 12];
 const THREADS = [
   {
     id:'word', name:'一句没送到的话',
@@ -469,7 +469,7 @@ const THREADS = [
           { label:'在心里默一遍，继续走', fx:{resolve:-1}, ok:{text:'你把每个字都过了一遍。顺序没错，只是默完之后，口有点干。'}, thread:'push' },
           { label:'先不想这件事', fx:{}, ok:{text:'你把这件事收起来，和干粮放在一处。'}, thread:'drop', gentle:true }
         ] },
-      { at:4, title:'中间有两个字',
+      { at:5, title:'中间有两个字',
         text:g=>'过布理之后，你试着把那句话再说一遍。中间有两个字想不起来了，怎么换都觉得不对。'
           + (g.thread && g.thread.firstLayer ? '\n\n第 ' + g.thread.firstLayer + ' 程你在这件事上停过一次。那时候它还完整。' : '')
           + '\n\n路边有人在补一辆车的轮辐，锤子敲得很慢。',
@@ -478,7 +478,7 @@ const THREADS = [
           { label:'把话拆开，一个字一个字地问', fx:{resolve:-1}, ok:{text:'补车的人没抬头，说这一带的人都不记得谁说过什么。'}, thread:'push' },
           { label:'算了，反正也没人等着听', fx:{}, ok:{text:'你没有再往下想。锤子还在敲，敲得比刚才慢。'}, thread:'drop', gentle:true }
         ] },
-      { at:7, title:'背风的地方',
+      { at:9, title:'背风的地方',
         text:g=>{
           const m = threadMemory();
           return '荒野里有一块背风的石头，石面被磨得很光，像有人常在这儿坐。'
@@ -489,9 +489,16 @@ const THREADS = [
           { label:'在那儿等一晚，看有没有人来', fx:{supply:-2}, ok:{text:'天亮时还是没有人。你把话说了一遍，说给石头听。'}, thread:'push' },
           { label:'不问是谁，把话留下就走', fx:{shadow:1}, ok:{text:'你说完就走了。走出几步，觉得身后比刚才静。'}, thread:'push' },
           { label:'把这句话也留在原地', fx:{}, ok:{text:'你没有说出口。石头还是那块石头。'}, thread:'drop', gentle:true }
+        ] },
+      { at:12, title:'说给谁听',
+        text:()=>'再往东就没有路了。你在最后一个背风处停下来，把那句话又说了一遍。\n\n风把它吹散了。你等了一会儿，没有等到回应。',
+        opts:[
+          { label:'对着石头说完，一个字不改', fx:{resolve:1}, ok:{text:'你说完，坐了一会儿。石头没有应声，但你觉得这件事到这里可以了。'}, thread:'push' },
+          { label:'把这句话写下来，留在石缝里', fx:{supply:-1}, ok:{text:'你写了。写完把纸折好，塞进石缝，用一块小石头压住。'}, thread:'push' },
+          { label:'最后还是没有说出口', fx:{}, ok:{text:'你把这件事带到了这里，然后带回去了。'}, thread:'drop', gentle:true }
         ] }
     ],
-    reward:{ renown:18, materials:3 },
+    reward:{ renown:22, materials:4 },
     echoDone:'那句话最后说出去了。听的人没有应声，站了很久才走。',
     echoHalf:'那句话你带到过半路上。后来再想起来，已经不确定是不是原来那几个字。',
     echoLost:'临走时有人托你带一句话。你答应了。后来没有再提起。'
@@ -507,7 +514,7 @@ const THREADS = [
           { label:'不解开，贴身放着', fx:{flag:{seed_damp:true}}, ok:{text:'你把它塞进衣里。走了一程，布还是潮的。'}, thread:'push' },
           { label:'把袋子搁在桥头', fx:{}, ok:{text:'你把袋子放在桥栏边，没有回头。'}, thread:'drop', gentle:true }
         ] },
-      { at:4, title:'有人想买',
+      { at:5, title:'有人想买',
         text:g=>'古大道边有人看见你手里的布袋，问是不是能卖。他出的价不算低。'
           + (g.flags && g.flags.seed_damp ? '\n\n袋底那一小片已经发黑了。他大概也看见了。' : '\n\n袋子还是干的，绳结也没松。'),
         opts:[
@@ -515,7 +522,7 @@ const THREADS = [
           { label:'多走一段，绕开这个路口', fx:{supply:-1}, ok:{text:'你从田埂绕过去。回头时他还在原地站着。'}, thread:'push' },
           { label:'卖给他，这件事就算了', fx:{material:2}, ok:{text:'他数了几个铜板放在你手里。袋子提走的时候很轻。'}, thread:'drop', gentle:true }
         ] },
-      { at:7, title:'没有土的地方',
+      { at:9, title:'没有土的地方',
         text:g=>{
           const damp = g.flags && g.flags.seed_damp, m = threadMemory();
           return '再往东，地就全是石头了。石缝里有一点湿，但没有能下种的地方。'
@@ -526,9 +533,20 @@ const THREADS = [
           { label:'把种子撒进石缝', fx:{shadow:1}, ok:{text:'你把麻绳解开，一粒一粒放进缝里。风立刻吹走了一半。'}, thread:'push' },
           { label:'继续往东，找一块能下种的地方', fx:{supply:-2}, ok:{text:'你又走了半日。土没有找到，袋子还在手上。'}, thread:'push' },
           { label:'把袋子放下，不再带了', fx:{}, ok:{text:'你把它搁在石头上，摆得很正。'}, thread:'drop', gentle:true }
+        ] },
+      { at:12, title:'最后一块土',
+        text:g=>{
+          const damp = g.flags && g.flags.seed_damp;
+          return '石缝里那点湿气也干了。你走了很久，才在背阴处找到一小块土，只有巴掌大。'
+            + (damp ? '\n\n袋子里的东西已经不发芽了。你还是把它解开了。' : '\n\n袋子一直没解开过。绳结还是原来那个。');
+        },
+        opts:[
+          { label:'把剩下的种子全种下去', fx:{shadow:1}, ok:{text:'你把土翻开，一粒一粒按进去。风立刻盖上一层沙。'}, thread:'push' },
+          { label:'留一把在包里，剩下的种下', fx:{resolve:1}, ok:{text:'你留了一小把，扎好放回内袋。种下去的没有数。'}, thread:'push' },
+          { label:'把袋子埋了，不再想它', fx:{}, ok:{text:'你挖了个浅坑，把袋子放进去，盖上土。没有做记号。'}, thread:'drop', gentle:true }
         ] }
     ],
-    reward:{ renown:14, materials:6 },
+    reward:{ renown:18, materials:8 },
     echoDone:'那袋种子最后撒在石缝里了。有没有长出来，你没有回头看。',
     echoHalf:'种子带到过半路。后来袋子潮了，你没再打开。',
     echoLost:'有人托你带一袋种子过去。袋子不重，但后来还是没带。'
@@ -544,7 +562,7 @@ const THREADS = [
           { label:'把手按上去，比一比长短', fx:{resolve:-1}, ok:{text:'三道一样长。不像记路，像记还剩多少。'}, thread:'push' },
           { label:'不必管别人画的东西', fx:{}, ok:{text:'你从界石边走过去。手没有伸出来。'}, thread:'drop', gentle:true }
         ] },
-      { at:4, title:'门背后多了一道',
+      { at:5, title:'门背后多了一道',
         text:g=>'布理一间废屋的门背后也有。这次是四道，最后一道短些。'
           + (g.thread && g.thread.firstLayer ? '\n\n第 ' + g.thread.firstLayer + ' 程你见过三道。现在反而多了。' : '')
           + '\n\n门轴坏了，门关不严，风一吹就晃。',
@@ -553,15 +571,22 @@ const THREADS = [
           { label:'照原样描下来，不动它', fx:{supply:-1}, ok:{text:'你描了很久。描完把门轻轻推回原处，它还是关不严。'}, thread:'push' },
           { label:'关上门，走开', fx:{}, ok:{text:'门晃了两下，停住了。'}, thread:'drop', gentle:true }
         ] },
-      { at:7, title:'只剩一横',
+      { at:9, title:'只剩一横',
         text:()=>'石台背面还有最后一处。只有一道，横很短，收笔的地方往回勾了一点。\n\n这一路他是往少里数的。',
         opts:[
           { label:'翻到石台背面，把那一横看清楚', fx:{supply:-2}, ok:{text:'石台比看上去重。你撑住的时候，指头蹭掉了一点炭。'}, thread:'push' },
           { label:'不数了，只在这儿站一会儿', fx:{shadow:1}, ok:{text:'你站着没动。风把你来时的脚印填平了一点。'}, thread:'push' },
           { label:'把地图收起来', fx:{}, ok:{text:'你把地图折回原来的折痕里。'}, thread:'drop', gentle:true }
+        ] },
+      { at:12, title:'数到零',
+        text:()=>'最后一道记号之后没有新的了。石头上只剩一道划痕，很浅，像是没力气再划。\n\n你没有再往前找。',
+        opts:[
+          { label:'在下面添一道，凑成两个', fx:{resolve:1}, ok:{text:'你添了一道。两横并排，比他的都深。'}, thread:'push' },
+          { label:'把自己的名字刻在旁边', fx:{renown:2}, ok:{text:'你刻了。刻完看了一会儿，觉得有点多余，但没有抹掉。'}, thread:'push' },
+          { label:'把地图留在石头上', fx:{}, ok:{text:'你把地图折好，压在石头下面。风不会把它吹走。'}, thread:'drop', gentle:true }
         ] }
     ],
-    reward:{ renown:20, materials:2 },
+    reward:{ renown:24, materials:3 },
     echoDone:'三个记号你都找着了。最后那一道只有一横，像有人早知道自己在往少里走。',
     echoHalf:'记号找到过两处。第三处你没有翻过去看。',
     echoLost:'地图上有人画过记号。你没有去数。'
@@ -577,7 +602,7 @@ const THREADS = [
           { label:'停下来问一句东边什么样', fx:{supply:-1}, ok:{text:'他说没去过。想了想又说，风大的时候别站在高处。'}, thread:'push' },
           { label:'到时候再看', fx:{}, ok:{text:'你把这件事留到以后。以后还没有到。'}, thread:'drop', gentle:true }
         ] },
-      { at:4, title:'想不起名字了',
+      { at:5, title:'想不起名字了',
         text:g=>'过布理的时候，你发现自己想不起托你那人叫什么。样子还记得，名字不在了。'
           + (g.thread && g.thread.firstLayer ? '\n\n第 ' + g.thread.firstLayer + ' 程你答应过这件事。那时候觉得很好记。' : ''),
         opts:[
@@ -585,7 +610,7 @@ const THREADS = [
           { label:'照着样子再想一遍', fx:{resolve:-1}, ok:{text:'你想起了他坐的那把椅子，还有门框的高度。名字还是没有。'}, thread:'push' },
           { label:'算了，回去再说', fx:{}, ok:{text:'你合上本子。纸上有一道压痕，是刚才写得太用力。'}, thread:'drop', gentle:true }
         ] },
-      { at:7, title:'东边',
+      { at:9, title:'东边',
         text:g=>{
           const m = threadMemory();
           return '路在前面平了。风从东边来，带着一股说不清的味道。'
@@ -596,9 +621,16 @@ const THREADS = [
           { label:'一直站到天暗，看清远处', fx:{supply:-2}, ok:{text:'天暗下去，远处没有灯。你记住的是风从哪边来。'}, thread:'push' },
           { label:'往东再走一段，不回头', fx:{shadow:1}, ok:{text:'你又走了一段。回来的时候，来路已经看不太清了。'}, thread:'push' },
           { label:'看过了，走吧', fx:{}, ok:{text:'你转身。风还是从那边来。'}, thread:'drop', gentle:true }
+        ] },
+      { at:12, title:'回去要讲什么',
+        text:()=>'东边到了。你站了很久，开始想回去要讲什么。\n\n第一句想好了，第二句就卡住。',
+        opts:[
+          { label:'把能记住的都记下来', fx:{supply:-1}, ok:{text:'你写了半页，都是路上看见的东西。没有一句是他说要听的。'}, thread:'push' },
+          { label:'什么都不记，回去照实说', fx:{resolve:1}, ok:{text:'你把本子合上。能讲多少讲多少。'}, thread:'push' },
+          { label:'这件事就到这里', fx:{}, ok:{text:'你没有再想回去要讲什么。'}, thread:'drop', gentle:true }
         ] }
     ],
-    reward:{ renown:16, materials:4 },
+    reward:{ renown:20, materials:6 },
     echoDone:'你替他看了东边。回去要讲的时候，能讲出来的只有风从哪边来。',
     echoHalf:'你替他记过几样东西。后来连他的名字也想不起来了。',
     echoLost:'有人托你替他看一眼东边。你走到了，但没有看。'
@@ -678,6 +710,10 @@ function pickCompanion(seed){
 function companionDef(){
   return (G && G.companion) ? COMPANIONS.find(c => c.id === G.companion.id) : null;
 }
+/* 「结伴」点亮后多一格信任，界面上的圆点也跟着多一个 */
+function companionMax(){
+  return 2 + ((G && G.rules && G.rules.companionTrust) ? 1 : 0);
+}
 
 const ROUTE = ['shire','bree','wild'];
 const REGIONS = {
@@ -685,8 +721,10 @@ const REGIONS = {
   bree: { id:'bree',  name:'布理与古大道', short:'布理', sub:'四方旅人汇集的十字路口' },
   wild: { id:'wild',  name:'风云顶与荒野', short:'荒野', sub:'石头、雾，和越来越近的吸气声' }
 };
-const LAYERS_PER_REGION = 4;
+const LAYERS_PER_REGION = 5;
 const TOTAL_LAYERS = ROUTE.length * LAYERS_PER_REGION;
+/* 15 程比 12 程多三次路耗，初始补给补两点，否则前段就被磨死在路上 */
+const JOURNEY_SUPPLY = 2;
 
 /* 出身：开局决定属性倾向、随身物、以及一条只属于它的规则
    unlock 为空 = 一开始就有；否则按声望 / 通关数自动解锁 */
@@ -716,7 +754,23 @@ const HEROES = [
 
   { id:'nameless', name:'无籍者', sub:'没有来历的人', attrs:{valor:3,cunning:3,lore:3,spirit:3}, hp:11, supply:6, resolve:2,
     trait:'一无所有', traitDesc:'没有任何加成。但每程结算的声望 +40%——你只能靠一次次走。',
-    rule:'nameless', unlock:{ wins:3 } }
+    rule:'nameless', unlock:{ wins:3 } },
+
+  { id:'bree', name:'布理人', sub:'十字路口长大的', attrs:{valor:3,cunning:3,lore:2,spirit:3}, hp:11, supply:8, resolve:2,
+    trait:'集市上长大', traitDesc:'每次营地与休整，决心额外 +1。开局带「渡口的旧铜币」。',
+    start:{ tokens:['ferry_coin'] }, rule:'breeBorn', unlock:{ renown:200 } },
+
+  { id:'smith', name:'铁匠', sub:'手上有茧的', attrs:{valor:4,cunning:2,lore:3,spirit:2}, hp:13, supply:6, resolve:2,
+    trait:'打过铁', traitDesc:'营地与休整的恢复额外 +2。开局带「铁制火把」。',
+    start:{ items:['torch'] }, rule:'campBonus', unlock:{ wins:1 } },
+
+  { id:'courier', name:'信使', sub:'跑过很多路的', attrs:{valor:2,cunning:4,lore:2,spirit:3}, hp:10, supply:8, resolve:3,
+    trait:'跑过很多路', traitDesc:'每场远征多一次不花决心的重掷。开局带「一封没送出去的信」。',
+    start:{ tokens:['courier_letter'] }, rule:'extraReroll', unlock:{ renown:260 } },
+
+  { id:'watcher', name:'守夜人', sub:'守过夜的', attrs:{valor:3,cunning:3,lore:2,spirit:4}, hp:11, supply:7, resolve:3,
+    trait:'守过夜', traitDesc:'阴影第一次到 6 时，自动退回 5。只挡一次。',
+    rule:'shadowGuard', unlock:{ wins:2 } }
 ];
 
 /* 装备：slot = main / off / body / cloak / trinket；q = 0 普通 1 精良 2 稀有 3 传世 */
@@ -757,7 +811,8 @@ const ITEMS = {
 const TALENT_BRANCHES = [
   { id:'valor', name:'武勇', sub:'走得更远，扛得更久' },
   { id:'lore',  name:'智慧', sub:'看得更清，选得更好' },
-  { id:'luck',  name:'机运', sub:'该来的总会来，但你可以挪一挪' }
+  { id:'luck',  name:'机运', sub:'该来的总会来，但你可以挪一挪' },
+  { id:'road',  name:'行路', sub:'路怎么走，比走多快重要' }
 ];
 
 const TALENTS = [
@@ -789,7 +844,17 @@ const TALENTS = [
   { id:'k5', b:'luck', row:1, name:'预感', cost:8,  req:['k2'], rule:'firstBonus', desc:'每场远征的第一次检定 +2。' },
   { id:'k6', b:'luck', row:2, name:'老练', cost:14, req:['k3'], rule:'campBonus', desc:'营地恢复额外 +2。' },
   { id:'k7', b:'luck', row:2, name:'夜行', cost:14, req:['k4'], fx:{cunning:2}, desc:'机敏 +2。' },
-  { id:'k8', b:'luck', row:2, name:'命运的偏袒', cost:20, req:['k6','k7'], rule:'luckReroll', desc:'每场远征可将一次自然 1 改为自然 20。' }
+  { id:'k8', b:'luck', row:2, name:'命运的偏袒', cost:20, req:['k6','k7'], rule:'luckReroll', desc:'每场远征可将一次自然 1 改为自然 20。' },
+
+  /* 行路：不打人不施法，只管吃、住、同行、回家 */
+  { id:'r1', b:'road', row:0, name:'简行', cost:5, req:[], fx:{supplyMax:1}, desc:'补给上限 +1。' },
+  { id:'r2', b:'road', row:0, name:'耐走', cost:5, req:[], fx:{hpMax:1,supplyMax:1}, desc:'生命上限 +1，补给上限 +1。' },
+  { id:'r3', b:'road', row:1, name:'结伴', cost:10, req:['r1'], rule:'companionTrust', desc:'同行者的信任多一格，每局可以让他搭三次手。' },
+  { id:'r4', b:'road', row:1, name:'抄近路', cost:8, req:['r1'], fx:{cunning:1,supplyMax:1}, desc:'机敏 +1，补给上限 +1。' },
+  { id:'r5', b:'road', row:1, name:'野营', cost:8, req:['r2'], fx:{hpMax:2,supplyMax:1}, desc:'生命上限 +2，补给上限 +1。' },
+  { id:'r6', b:'road', row:2, name:'归途', cost:14, req:['r3'], rule:'homeward', desc:'撤退时声望不再减半。' },
+  { id:'r7', b:'road', row:2, name:'老练旅人', cost:14, req:['r4'], rule:'steadyExtra', desc:'每局多一次「记起自己的名字」。' },
+  { id:'r8', b:'road', row:2, name:'长途', cost:18, req:['r6','r7'], fx:{hpMax:2,supplyMax:2}, desc:'生命上限 +2，补给上限 +2。' }
 ];
 
 /* 事件：region = shire / bree / wild / any；type 对应节点类型 */
@@ -4485,7 +4550,7 @@ function newGame(heroId, tierId, seed){
   const mods = tierMods(tier.id);
 
   const hpMax = hero.hp + tf.hpMax + ef.hpMax;
-  const supplyMax = Math.max(3, hero.supply + tf.supplyMax + ef.supplyMax + (mods.supply||0));
+  const supplyMax = Math.max(3, hero.supply + tf.supplyMax + ef.supplyMax + (mods.supply||0) + JOURNEY_SUPPLY);
   const resolveMax = hero.resolve + tf.resolveMax + ef.resolveMax + tf.extraResolve;
 
   G = {
@@ -4508,8 +4573,9 @@ function newGame(heroId, tierId, seed){
     screen:'map', event:null, pending:null, log:[],
     walkedList:[], rerolls:0, perLayerLore:false, wardenUsed:false,
     standUsed:false, luckUsed:false, firstCheck:true,
-    freeRerolls: tf.rules.extraReroll ? 1 : 0, eventCount:0,
-    steadyLeft:2, shadowResistUsed:false, secLeft:SEC_LIMIT,
+    freeRerolls: (tf.rules.extraReroll || hero.rule === 'extraReroll') ? 1 : 0, eventCount:0,
+    steadyLeft:STEADY_LIMIT + (tf.rules.steadyExtra ? 1 : 0), shadowResistUsed:false,
+    shadowGuardUsed:false, secLeft:SEC_LIMIT,
     renown:0, materials:0, over:null,
     campHalf: !!mods.campHalf, dcBonus: mods.dc||0, supplyDrain: mods.supplyDrain||0, dmgBonus: mods.dmg||0,
     hunt: !!mods.hunt, noRetreat: !!mods.noRetreat, finalDC: mods.finalDC||0,
@@ -4588,10 +4654,15 @@ function applyFx(fx, ctx){
     if(f.supply > 0) f.supply = Math.max(1, Math.floor(f.supply / 2));
   }
   /* 老练：营地与休整的恢复额外 +2（只对原本就有恢复的选项生效） */
-  if(ctx && ctx.camp && G.rules && G.rules.campBonus){
+  if(ctx && ctx.camp && ((G.rules && G.rules.campBonus) || G.hero.rule === 'campBonus')){
     f = Object.assign({}, f);
     if(f.hp > 0) f.hp += 2;
     if(f.supply > 0) f.supply += 2;
+  }
+  /* 布理人：在有人烟的地方更容易缓过来，营地额外回 1 点决心 */
+  if(ctx && ctx.camp && G.hero.rule === 'breeBorn'){
+    f = Object.assign({}, f);
+    f.resolve = (f.resolve || 0) + 1;
   }
   const out = [];
   if(f.hp){
@@ -4696,6 +4767,12 @@ function addShadow(n){
   if(!G || !n) return;
   const before = shadowStage().name;
   G.shadow = Math.max(0, Math.min(SHADOW_MAX, (G.shadow || 0) + n));
+  /* 守夜人：第一次要越过 6 时，把灯按住。只挡一次，且只挡「变深」 */
+  if(n > 0 && G.hero && G.hero.rule === 'shadowGuard' && !G.shadowGuardUsed && G.shadow >= 6){
+    G.shadow = 5;
+    G.shadowGuardUsed = true;
+    addLog('你守过夜，知道怎么把灯留住。');
+  }
   const after = shadowStage();
   if(after.name !== before){
     addLog('阴影 · ' + after.name + '：' + after.line);
@@ -5137,12 +5214,12 @@ const app = $('app');
 /* 代价、可用态、按钮文案、提示都从这一处取，界面不许另写一份 */
 function steadyCost(){
   const s = G ? (G.shadow || 0) : 0;
-  const left = G && Number.isFinite(G.steadyLeft) ? G.steadyLeft : 2;
+  const left = G && Number.isFinite(G.steadyLeft) ? G.steadyLeft : STEADY_LIMIT;
   const deep = s >= 6;
   const label = '决心 1 + 补给 1' + (deep ? ' + 生命 2' : '');
   const ok = left > 0 && s >= 2 && G.resolve >= 1 && G.supply >= 1 && G.hp >= (deep ? 3 : 1);
   let note;
-  if(left <= 0) note = '这一路上你已经把名字念过两遍。再念，也没有人应了。';
+  if(left <= 0) note = '这一路上你已经把名字念过 ' + STEADY_LIMIT + ' 遍。再念，也没有人应了。';
   else if(s < 2) note = '现在还不需要。';
   else if(!ok) note = '身上拿不出这点东西了。';
   else note = '停下来，把出发时别人叫你的那个名字念一遍。还剩 ' + left + ' 次。';
@@ -5300,11 +5377,11 @@ function companionBar(){
   if(!G || !G.companion || G.over) return '';
   const def = companionDef();
   if(!def) return '';
-  const t = Math.max(0, Math.min(2, G.companion.trust));
+  const t = Math.max(0, Math.min(companionMax(), G.companion.trust));
   return `<div class="compbar">
     <span class="ck">同行</span>
     <span class="cn">${esc(def.name)}</span>
-    <span class="ct">${'●'.repeat(t)}${'○'.repeat(2 - t)}</span>
+    <span class="ct">${'●'.repeat(t)}${'○'.repeat(companionMax() - t)}</span>
     <span class="cd">${esc(def.line)}</span>
   </div>`;
 }
@@ -5327,6 +5404,8 @@ function rollLootItem(rnd){
    「收好」是玩家自己能做的保底：花 1 点决心，把一件裹进行囊最底层。
    代价、次数、按钮可用态、提示都从 secureCost() 一处取，界面不许另写一份。 */
 const SEC_LIMIT = 2;
+/* 15 程比 12 程长，阴影有更多机会咬人，所以「记起名字」多给一次 */
+const STEADY_LIMIT = 3;
 function secureCost(){
   const left = G && Number.isFinite(G.secLeft) ? G.secLeft : SEC_LIMIT;
   const place = !!(G && !G.over && (G.screen === 'map' || G.screen === 'event'));
@@ -5412,9 +5491,9 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.12</div>
+    <div class="eyebrow">文字跑团 · v0.13</div>
     <h1>中土远征</h1>
-    <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十二程路。你要在走到哪一步的时候，决定回头。</p>
+    <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十五程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
 
   <div class="card pad" style="margin-top:24px">
@@ -6002,6 +6081,11 @@ function enterNode(id){
     addLog('进入 ' + REGIONS[newRegion].name);
     pushEcho({ t:'region', from:REGIONS[prevRegion].short, to:REGIONS[newRegion].short });
     if(newRegion === 'wild'){ addShadow(2); addLog('这里的空气不一样。'); }
+    /* 换了地方，人和包都缓一口气。15 程比 12 程长，
+       跨区不给这一点补给，稳健打法也会死在半路。 */
+    G.hp = Math.min(G.hpMax, G.hp + 2);
+    G.supply = Math.min(G.supplyMax, G.supply + 2);
+    addLog('在新的地方歇了一晚。');
   }
 
   if(node.type === 'final'){
@@ -6186,7 +6270,7 @@ function chooseOption(o){
     G.companionMet = true;
     if(cdef){
       if(o.companion === 'join'){
-        G.companion = { id:cdef.id, trust:2, used:0, firstLayer:G.layer + 1 };
+        G.companion = { id:cdef.id, trust:companionMax(), used:0, firstLayer:G.layer + 1 };
         addLog('同行 · ' + cdef.name);
         pushEcho({ t:'companion', kind:'join', name:cdef.name });
       } else {
@@ -6569,7 +6653,8 @@ function endRun(kind){
     if(G.vow){ renown += 25; }
   }
   else if(kind === 'retreat'){
-    renown = Math.floor(renown * 0.5);
+    /* 「归途」点亮后，回头不再扣声望：这也是行路的一部分 */
+    if(!(G.rules && G.rules.homeward)) renown = Math.floor(renown * 0.5);
     /* 回头要轻装：收好的先装进包，其余默认只带走一半；点亮「不退」才全带 */
     const full = !!(G.rules && G.rules.retreatFull);
     kept = secured.concat(full ? loose : loose.slice(0, Math.ceil(loose.length / 2)));
@@ -6777,8 +6862,9 @@ function loadRun(){
     if(!Number.isFinite(d.eventCount)) d.eventCount = 0;
     if(!Array.isArray(d.echoes)) d.echoes = [];
     /* v0.5 新增：旧存档没有这两项，补默认值后刷新即可继续用新机制 */
-    if(!Number.isFinite(d.steadyLeft)) d.steadyLeft = 2;
+    if(!Number.isFinite(d.steadyLeft)) d.steadyLeft = STEADY_LIMIT;
     if(typeof d.shadowResistUsed !== 'boolean') d.shadowResistUsed = false;
+    if(typeof d.shadowGuardUsed !== 'boolean') d.shadowGuardUsed = false;
     /* v0.6 新增：旧存档没有「收好」字段，补齐后刷新就能继续用 */
     if(!Number.isFinite(d.secLeft)) d.secLeft = SEC_LIMIT;
     if(!Array.isArray(d.loot)) d.loot = [];
