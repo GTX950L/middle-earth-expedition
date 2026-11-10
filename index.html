@@ -7,7 +7,7 @@
 <style>
 :root{
   --paper:#f1e9d8; --panel:#faf5e9; --panel-2:#f6efe0; --panel-3:#fdfaf2;
-  --ink:#382b1b; --ink-2:#6b5a41; --ink-3:#98866c; --ink-4:#b6a68c;
+  --ink:#382b1b; --ink-2:#6b5a41; --ink-3:#7a6a4e; --ink-4:#a8987e;
   --line:#dbcbab; --line-2:#e9ddc4;
   --gold:#96682c; --gold-2:#b8873f; --gold-3:#e2c894;
   --blood:#8a3a2a; --moss:#4d6b3a; --indigo:#3d5a7a;
@@ -16,6 +16,11 @@
   --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* 键盘走一遍也不该迷路：每个能按的东西都要有看得见的焦点 */
+:focus-visible{outline:2px solid var(--gold-2);outline-offset:2px}
+.opt:focus-visible,.pick:focus-visible,.campcard:focus-visible,.btn:focus-visible,
+.itemcard:focus-visible,.tnode:focus-visible{outline-offset:1px}
+.node-g:focus-visible .ring{stroke:var(--gold);stroke-width:2.4}
 html{-webkit-text-size-adjust:100%}
 body{
   font-family:var(--sans); color:var(--ink); background-color:var(--paper);
@@ -31,12 +36,13 @@ h1{font-size:28px;line-height:1.35}
 h2{font-size:19px;line-height:1.5}
 h3{font-size:15px;line-height:1.5}
 .mono{font-family:var(--mono);font-size:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 2px rgba(74,58,34,.05)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 1px 2px rgba(74,58,34,.05),0 6px 18px rgba(74,58,34,.045)}
 .pad{padding:22px 24px}
 .rule{height:1px;background:var(--line-2);border:0;margin:16px 0}
 
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:13px;margin-bottom:20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.brand{font-family:var(--serif);font-size:16px;letter-spacing:.16em;color:var(--gold);cursor:pointer}
+.brand{font-family:var(--serif);font-size:18px;letter-spacing:.16em;color:var(--gold);cursor:pointer}
 .brand small{display:block;font-family:var(--sans);font-size:10px;letter-spacing:.2em;color:var(--ink-3);margin-top:3px}
 .metabar{display:flex;gap:16px;align-items:center;font-family:var(--mono);font-size:11.5px;color:var(--ink-2)}
 .metabar b{font-weight:400;color:var(--gold)}
@@ -67,6 +73,7 @@ h3{font-size:15px;line-height:1.5}
 
 .title-screen{text-align:center;padding:38px 20px 8px}
 .title-screen .eyebrow{font-size:11px;letter-spacing:.32em;color:var(--ink-3);margin-bottom:14px}
+.title-screen .eyebrow::after{content:"";display:block;width:42px;height:1px;background:var(--gold-3);margin:12px auto 0}
 .title-screen h1{font-size:34px;margin-bottom:10px}
 .title-screen .lede{font-family:var(--serif);font-size:15px;color:var(--ink-2);max-width:460px;margin:0 auto;line-height:1.95}
 
@@ -121,12 +128,15 @@ h3{font-size:15px;line-height:1.5}
 /* 事件 */
 .event{padding:24px 26px}
 .event .kicker{font-size:11px;letter-spacing:.16em;color:var(--gold);margin-bottom:8px}
-.event h2{margin-bottom:14px;font-size:20px}
-.prose{font-family:var(--serif);font-size:16.5px;line-height:2;color:#3f3221}
-.prose p+p{margin-top:11px}
+.event h2{margin-bottom:14px;font-size:22px;letter-spacing:.01em}
+.prose{font-family:var(--serif);font-size:16.5px;line-height:1.92;color:#3f3221}
+/* 版心：一行约 38 个汉字。880 的容器对 16.5px 中文太宽，读久了容易串行 */
+.event .prose{max-width:38em}
+.prose p+p{margin-top:14px}
 .opts{margin-top:20px;display:flex;flex-direction:column;gap:8px}
 .opt{display:flex;align-items:baseline;gap:12px;border:1px solid var(--line);border-radius:7px;background:var(--panel-2);padding:11px 15px;cursor:pointer;text-align:left;font-size:14px;color:var(--ink);transition:.15s;width:100%;font-family:var(--sans);line-height:1.6}
 .opt:hover{border-color:var(--gold-3);background:#f7efdd}
+.opt:active{transform:translateY(1px);background:#f2e7d2}
 .opt .idx{font-family:var(--mono);font-size:11px;color:var(--ink-3);flex:0 0 auto;padding-top:2px}
 .opt .lbl{flex:1}
 .opt .dc{font-family:var(--mono);font-size:11px;color:var(--ink-3);flex:0 0 auto;white-space:nowrap;padding-top:2px}
@@ -198,6 +208,10 @@ h3{font-size:15px;line-height:1.5}
   .event{padding:19px 17px}
   .pad{padding:17px}
   .prose{font-size:16px}
+  .event .prose{max-width:none}
+  .btn{min-height:42px}
+  .opt{min-height:46px}
+  .lootbar .secbtn{min-height:28px;padding:3px 9px}
   h1{font-size:23px}
   .title-screen h1{font-size:26px}
   .topbar{flex-direction:column;align-items:flex-start;gap:7px;margin-bottom:14px}
@@ -231,7 +245,11 @@ h3{font-size:15px;line-height:1.5}
 .shadowbar .strack{flex:1;min-width:60px;height:3px;background:#e8d5c6;border-radius:2px;overflow:hidden}
 .shadowbar .strack i{display:block;height:100%;background:var(--blood);transition:width .4s ease}
 @media (max-width:640px){
-  .shadowbar{padding:9px 12px;font-size:11.5px;gap:8px}
+  .shadowbar{padding:7px 11px;font-size:11.5px;gap:8px}
+  .shadowbar .sline{display:none}
+  .lootbar .lrisk{font-size:10.5px}
+  .lootbar .lrisk .full{display:none}
+  .lootbar .lrisk .short{display:inline}
 }
 
 .opt.locked-opt{opacity:.62;cursor:not-allowed;background:var(--panel-2)}
@@ -277,10 +295,11 @@ h3{font-size:15px;line-height:1.5}
 .lootbar .lchip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border:1px solid #d4e0c6;border-radius:4px;background:#fff;font-size:11.5px;white-space:nowrap}
 .lootbar .lchip.sec{border-color:#a9bf90;background:#eaf2e0}
 .lootbar .lchip i{font-style:normal;font-size:10.5px;color:#6d8a52;letter-spacing:.04em}
-.lootbar .secbtn{border:0;border-bottom:1px solid #6d8a52;background:none;padding:0 1px;font-size:11px;color:#4a6b34;cursor:pointer;font-family:inherit}
-.lootbar .secbtn:hover{color:#2f4a20;border-bottom-color:#2f4a20}
-.lootbar .secbtn:disabled{color:#9aa88c;border-bottom-color:#c9d5bc;cursor:default}
+.lootbar .secbtn{border:1px solid #c8d8b5;background:#fff;border-radius:4px;padding:2px 8px;font-size:11px;color:#4a6b34;cursor:pointer;font-family:inherit;min-height:24px}
+.lootbar .secbtn:hover{color:#2f4a20;border-color:#8fa878;background:#f4f9ee}
+.lootbar .secbtn:disabled{color:#9aa88c;border-color:#dbe4d1;background:#f7faf3;cursor:default}
 .lootbar .lrisk{font-size:11px;color:#8a9a78;letter-spacing:.02em;flex-basis:100%}
+.lootbar .lrisk .short{display:none}
 /* 这一趟的私事 */
 .threadbar{display:flex;align-items:center;gap:10px;padding:9px 14px;margin-bottom:14px;font-size:12px;color:#6a5433;
   background:#faf3e6;border:1px solid #e6d6b8;border-left:3px solid var(--gold);border-radius:6px;flex-wrap:wrap}
@@ -306,6 +325,10 @@ h3{font-size:15px;line-height:1.5}
   .lootbar{padding:8px 12px;font-size:11.5px;gap:7px}
   .lootbar .lrisk{font-size:10.5px}
 }
+/* 系统里关掉动效的人，就别给他动 */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none !important;animation:none !important}
+}
 </style>
 </head>
 <body>
@@ -314,7 +337,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.11
+   中土远征 v0.12
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -4511,7 +4534,7 @@ function newGame(heroId, tierId, seed){
 
   addLog('启程 · ' + REGIONS[ROUTE[0]].name + (tier.id>1 ? ' · ' + tier.name : ''));
   G.screen = 'event';
-  G.event = { id:'__start', kicker:'启程', title:'启程', text:startText(), options:[{ label:'出发', free:true }] };
+  G.event = { id:'__start', kicker:'序', title:'启程', text:startText(), options:[{ label:'出发', free:true }] };
   saveRun();
   render();
 }
@@ -5178,8 +5201,41 @@ function resistShadow(){
   render();
 }
 
+/* 切屏或换事件时回到顶部；同一屏重绘（比如点「收好」）不动，
+   免得读到一半被拽回开头。 */
+let lastScreen = null, lastEventId = null;
+function scrollTopSoon(){
+  const go = ()=>{ try{ if(typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0,0); }catch(e){} };
+  if(typeof requestAnimationFrame === 'function') requestAnimationFrame(go);
+  else go();
+}
+
+/* 键盘：数字键对应屏幕上的序号，Enter 走唯一的那条路，地图上 Enter 进焦点节点。
+   输入框里不拦截，免得打字变成选项。 */
+if(typeof document !== 'undefined' && document.addEventListener){
+  document.addEventListener('keydown', e=>{
+    const tag = e.target && e.target.tagName ? String(e.target.tagName).toUpperCase() : '';
+    if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if(e.metaKey || e.ctrlKey || e.altKey) return;
+    if(/^[1-9]$/.test(e.key)){
+      const btn = document.querySelector('.opt[data-i="' + (Number(e.key) - 1) + '"]:not(:disabled)');
+      if(btn){ e.preventDefault(); btn.click(); }
+      return;
+    }
+    if(e.key === 'Enter'){
+      const focus = document.activeElement;
+      if(focus && focus.dataset && focus.dataset.node){ e.preventDefault(); enterNode(focus.dataset.node); return; }
+      const opts = document.querySelectorAll('.opt:not(:disabled)');
+      if(opts.length === 1){ e.preventDefault(); opts[0].click(); }
+    }
+  });
+}
+
 function render(){
-  if(!G || G.screen === 'title') return renderTitle();
+  if(!G || G.screen === 'title'){
+    if(lastScreen !== 'title'){ lastScreen = 'title'; lastEventId = null; scrollTopSoon(); }
+    return renderTitle();
+  }
   /* 阴影到顶不再拖到结算才改判：立刻给一次终局抉择。
      检定动画中途不打断，等它回到地图再拦；抗争之后若阴影已退，退回地图。 */
   if(!G.over && G.shadow >= SHADOW_MAX && G.screen !== 'shadowend' && G.screen !== 'check'){
@@ -5191,6 +5247,9 @@ function render(){
   if(!G.over && (G.screen === 'map' || G.screen === 'event' || G.screen === 'check' || G.screen === 'shadowend' || G.screen === 'result')){
     saveRun();
   }
+  const scr = G.screen, evId = G.event ? G.event.id : null;
+  if(scr !== lastScreen || (scr === 'event' && evId !== lastEventId)) scrollTopSoon();
+  lastScreen = scr; lastEventId = evId;
   if(G.screen === 'shadowend') return renderShadowEnd();
   if(G.screen === 'camp') return renderCamp();
   if(G.screen === 'talents') return renderTalents();
@@ -5220,7 +5279,7 @@ function shadowBar(){
   const pct = Math.min(100, G.shadow / SHADOW_MAX * 100);
   return `<div class="shadowbar">
     <span class="sname">${st.name}</span>
-    <span>${st.line}</span>
+    <span class="sline">${st.line}</span>
     <span class="strack"><i style="width:${pct}%"></i></span>
   </div>`;
 }
@@ -5272,12 +5331,12 @@ function secureCost(){
   const left = G && Number.isFinite(G.secLeft) ? G.secLeft : SEC_LIMIT;
   const place = !!(G && !G.over && (G.screen === 'map' || G.screen === 'event'));
   const ok = place && left > 0 && G.resolve >= 1;
-  let note;
-  if(left <= 0) note = '这一趟已经收好过两件。行囊就这么大。';
-  else if(!place) note = '回到路上再收。';
-  else if(!ok) note = '现在腾不出手来。';
-  else note = '收好 1 件花 1 点决心 · 还剩 ' + left + ' 次';
-  return { ok, left, note };
+  let note, short;
+  if(left <= 0){ note = '这一趟已经收好过两件。行囊就这么大。'; short = '这一趟收满两件'; }
+  else if(!place){ note = '回到路上再收。'; short = '回到路上再收'; }
+  else if(!ok){ note = '现在腾不出手来。'; short = '腾不出手'; }
+  else { note = '收好 1 件花 1 点决心 · 还剩 ' + left + ' 次'; short = '收好 1 件 · 剩 ' + left + ' 次'; }
+  return { ok, left, note, short };
 }
 function secureLoot(i){
   const l = G && G.loot && G.loot[i];
@@ -5305,7 +5364,7 @@ function lootBar(){
   return `<div class="lootbar">
     <span class="lname">随身</span>
     <span class="litems">${chips}</span>
-    <span class="lrisk">${esc(c.note)} · 收好的东西倒下也在，堕入阴影时什么都带不走</span>
+    <span class="lrisk"><span class="full">${esc(c.note)} · 收好的东西倒下也在，堕入阴影时什么都带不走</span><span class="short">${esc(c.short)}</span></span>
   </div>`;
 }
 
@@ -5330,7 +5389,7 @@ function threadBar(){
 function startText(){
   const base = '你从阿蒙苏尔外的那条绿道出发。麦子已经黄了，风把它们压向一边，又松开。路很宽，走起来不费力气。\n\n只是路边的篱笆上有几处新补的痕迹，补得很急。\n\n这一趟要走很远：过布理，穿古大道，一直到风云顶那边的荒野。有人劝你别去，但劝你的人自己也没走过。';
   const def = threadDef();
-  return base + (def ? '\n\n' + def.intro : '');
+  return base + (def ? '\n\n不过这一趟，不只是赶路。\n\n' + def.intro : '');
 }
 
 function finalText(){
@@ -5353,7 +5412,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.11</div>
+    <div class="eyebrow">文字跑团 · v0.12</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十二程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -5823,7 +5882,8 @@ function renderMap(){
     const isAvail = avail.has(n.id), isCur = n.id === G.at, isPast = visited.has(n.id) && !isCur;
     const dim = !isAvail && !isCur && !isPast && !peekIds.has(n.id);
     const isPeek = peekIds.has(n.id) && !isAvail && !isCur && !isPast;
-    nodes += `<g class="node-g ${isAvail?'avail':''} ${dim?'locked':''}" data-node="${n.id}">
+    const nodeA11y = isAvail ? ` tabindex="0" role="button" aria-label="前往第 ${n.layer + 1} 程"` : '';
+    nodes += `<g class="node-g ${isAvail?'avail':''} ${dim?'locked':''}" data-node="${n.id}"${nodeA11y}>
       ${isAvail ? `<circle cx="${n.x}" cy="${n.y}" r="21" fill="none" stroke="#b8873f" stroke-width="0.9" opacity=".55"/>` : ''}
       ${isPeek ? `<circle cx="${n.x}" cy="${n.y}" r="21" fill="none" stroke="#b8873f" stroke-width="0.9" stroke-dasharray="2 4" opacity=".5"/>` : ''}
       <circle class="ring" cx="${n.x}" cy="${n.y}" r="15" fill="${t.fill}" stroke="${isCur?'#96682c':t.color}" stroke-width="${isCur?2.4:(isAvail?1.7:1)}" opacity="${dim?.5:1}"/>
@@ -5853,6 +5913,7 @@ function renderMap(){
       </div>
       <div style="padding:8px 22px 2px">
         <h2 style="font-size:16px">${cur.type==='final' ? '最后一程' : (G.layer===0 ? '从这里开始' : '选下一处落脚点')}</h2>
+        ${avail.size ? '<p class="note" style="margin:6px 0 0">点击带金环的节点继续</p>' : ''}
       </div>
       <div class="mapscroll">
         <svg viewBox="0 0 720 ${h}" role="img">
@@ -5869,7 +5930,7 @@ function renderMap(){
     </div>
 
     <div class="btnrow mapfoot" style="justify-content:space-between">
-      <span class="note" style="margin:0">${avail.size ? '点击带金环的节点继续。' : ''}${G.loot.length ? ' · 随身战利品 ' + G.loot.length + ' 件' : ''}</span>
+      <span class="note" style="margin:0">${G.loot.length ? '随身战利品 ' + G.loot.length + ' 件' : ''}</span>
       ${G.noRetreat ? '<span class="warn" style="margin:0">本档难度无法撤退。</span>' : '<button class="btn ghost sm" id="retreatBtn">就此撤退</button>'}
     </div>
 
@@ -5971,7 +6032,7 @@ function enterNode(id){
   }
   if(node.type === 'start'){
     G.screen = 'event';
-    G.event = { id:'__start', kicker:'启程', title:'启程', text:startText(), options:[{ label:'出发', free:true }] };
+    G.event = { id:'__start', kicker:'序', title:'启程', text:startText(), options:[{ label:'出发', free:true }] };
     G.pending = null; render(); return;
   }
 
@@ -6671,7 +6732,9 @@ function renderResult(){
         : o.kind==='retreat'
           ? (o.lost && o.lost.length
               ? '回头路上走得急：收好的先装进包，其余只带走了一半。'
-              : '回头路上走得急，但一样也没落下。')
+              : (o.kept && o.kept.length
+                  ? '回头路上走得急，但一样也没落下。'
+                  : '这一趟你什么也没带回来。'))
           : o.kind==='shadow'
             ? (o.lost && o.lost.some(l=>l.sec)
                 ? '连收好的也没能带回来。身上的一切都留在了荒野里。'

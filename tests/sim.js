@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.11，能完整玩通。', '版本号']
+    ['v0.12，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -773,6 +773,13 @@ section('⑦ 渲染结构');
   if (vm.runInContext('document.getElementById("app").innerHTML', ctx).includes('class="compbar"'))
     fail('没有同伴时不该显示同行条');
   ok('同行条：有同伴时显示名字与信任格，没有时不占位');
+
+  /* 可视与操作层：这些是纯前端细节，行为断言测不到，直接锁在源码里 */
+  if (!html.includes('tabindex="0" role="button"')) fail('地图节点没有键盘焦点入口');
+  if (!html.includes("document.addEventListener('keydown'")) fail('没有全局键盘处理');
+  if (!html.includes('--ink-3:#7a6a4e')) fail('次要文字对比度没有调深');
+  if (!html.includes('prefers-reduced-motion')) fail('没有尊重系统的减少动效设置');
+  ok('可视与操作：地图节点可聚焦、数字键与 Enter 有全局处理、对比度已加深、尊重减少动效');
 }
 
 /* ---------- 8. 内容扩容与回响埋点 ---------- */
