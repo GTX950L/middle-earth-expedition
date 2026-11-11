@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.14，能完整玩通。', '版本号']
+    ['v0.15，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -517,14 +517,15 @@ section('③ 规则接线（天赋 / 出身 / 难度）');
 
   /* 3.14 难度 mods 真的接到局内状态 */
   const t1 = started([], 'ranger', 1).G();
-  if (started([], 'ranger', 2).call('effDC', 10) !== 11) fail('难度 II 的 DC +1 没生效');
+  /* v0.15：内容扩容稀释了单次 DC 修正，第 2 档改成 +2，否则和 1 档只差一局 */
+  if (started([], 'ranger', 2).call('effDC', 10) !== 12) fail('难度 II 的 DC +2 没生效');
   if (started([], 'ranger', 3).G().supplyMax !== t1.supplyMax - 1) fail('难度 III 的补给上限 −1 没生效');
   const t4 = started([], 'ranger', 4).G();
   /* v0.14 平衡：第 4 档只加追踪；路耗 +1 挪到第 5 档。
      原先 4 档一次加两条，通关率从 62% 掉到 20%，升一档等于撞墙。 */
-  if (!t4.hunt || t4.supplyDrain) fail('难度 IV 应为「只加追踪」，路耗留给第 V 档');
+  if (!t4.hunt || !t4.campHalf || t4.supplyDrain) fail('难度 IV 应为「追踪 + 恢复减半」，路耗留给第 V 档');
   const t5 = started([], 'ranger', 5).G();
-  if (t5.supplyDrain !== 1 || t5.campHalf) fail('难度 V 应为「只加荒野路耗」，恢复减半留给第 VI 档');
+  if (t5.supplyDrain !== 1) fail('难度 V 的荒野路耗没生效');
   const t6 = started([], 'ranger', 6).G();
   if (!t6.noRetreat || t6.finalDC !== 16 || t6.dmgBonus !== 1) fail('难度 VI 的禁退 / 终局检定 / 伤害 +1 没生效');
   const combo = started(['v7'], 'ranger', 6);
@@ -1682,7 +1683,69 @@ section('⑯ v0.14：世界的记忆 / 同行者 / 行装 / 事迹');
   ok("结算事迹：做到才写、最多五条、堕影者不列");
 }
 
-section('⑰ 产物');
+section('⑰ v0.15：多阶段事件 / 套装 / 事件扩容');
+{
+  const mkBox = (store) => {
+    const c = makeCtx(store || {});
+    return {
+      c,
+      run: e => vm.runInContext(e, c),
+      call(n, ...a) { c.__a = a; return vm.runInContext(n + "(...__a)", c); },
+      G: () => vm.runInContext("G", c)
+    };
+  };
+
+  /* 17.1 多阶段：第一段成功后，场景要继续，而不是弹一句「继续」 */
+  let multi = 0;
+  const walkThen = o => {
+    if (!o || typeof o !== "object") return;
+    if (o.then && Array.isArray(o.then.options) && o.then.options.length) multi++;
+    for (const k in o) if (o[k] && typeof o[k] === "object") walkThen(o[k]);
+  };
+  EVENTS.forEach(walkThen);
+  if (multi < 4) fail("多阶段事件只有 " + multi + " 处（应 ≥4）");
+
+  const P = mkBox();
+  P.run("META = defaultMeta()");
+  P.call("newGame", "ranger", 1, "MS-1");
+  P.run("G.screen = \"check\"; G.event = { id:\"shire_well_deep\", title:\"有绳的井\", type:\"story\", options:[] };");
+  P.run("G.pending = { opt: { label:\"下去\", ok: { text:\"第一段\", fx:{}, then: { text:\"第二段\", options: [ { label:\"摸\", check:{attr:\"lore\",dc:11}, ok:{text:\"a\"}, no:{text:\"b\"} }, { label:\"看\", fx:{}, ok:{text:\"c\"} } ] } } } };");
+  P.call("settleCheck", "clean", "");
+  const ev2 = P.G().event;
+  if (!ev2 || ev2.options.length !== 2) fail("多阶段事件没有切到第二段");
+  else {
+    if (ev2.text.indexOf("第一段") < 0 || ev2.text.indexOf("第二段") < 0) fail("第二段没有把两段文本接起来");
+    if (ev2.options[0].check.attr !== "lore") fail("第二段的判定没有保留");
+    ok("多阶段：第一段判定成功后进入第二段，两段文本相接，选项与判定原样保留（共 " + multi + " 处）");
+  }
+
+  /* 17.2 套装：凑齐两件才生效，卸一件立刻散 */
+  const Q = mkBox();
+  Q.run("META = defaultMeta()");
+  const full = Q.call("equippedFx", { cloak: "ferry_cloak", off: "lantern" });
+  if (full.resolveMax !== 1 || full.lore !== 2 || full.supplyMax !== 1 || full.spirit !== 1)
+    fail("渡口旧物没有生效：" + JSON.stringify(full));
+  const half = Q.call("equippedFx", { cloak: "ferry_cloak" });
+  if (half.resolveMax !== 0 || half.lore !== 0) fail("卸掉一件之后套装还在生效");
+  const SETS = get("SETS");
+  if (SETS.length !== 3) fail("套装数量不是 3");
+  for (const st of SETS) {
+    if (st.pieces.length !== 2) fail("套装 " + st.id + " 不是两件");
+    for (const pid of st.pieces) if (!ITEMS[pid]) fail("套装 " + st.id + " 指向不存在的装备：" + pid);
+  }
+  ok("套装 " + SETS.length + " 套：凑齐两件才加属性，卸一件立刻散，件名全部指向真实装备");
+
+  /* 17.3 事件规模：扩容后每个地区至少有 40 条本地事件 */
+  const byR = {};
+  for (const e of EVENTS) if ((e.weight || 0) > 0) byR[e.region] = (byR[e.region] || 0) + 1;
+  for (const r of ["shire", "bree", "wild"]) {
+    if ((byR[r] || 0) < 40) fail(r + " 本地可抽取事件只有 " + byR[r] + " 条");
+  }
+  if (Object.keys(ITEMS).length < 30) fail("装备只有 " + Object.keys(ITEMS).length + " 件");
+  ok("规模：夏尔 " + byR.shire + " / 布理 " + byR.bree + " / 荒野 " + byR.wild + " 条可抽取事件，装备 " + Object.keys(ITEMS).length + " 件");
+}
+
+section('⑱ 产物');
 ok('index.html ' + (fs.statSync(HTML_PATH).size / 1024).toFixed(1) + ' KB / ' + html.split('\n').length + ' 行');
 ok('总层数 ' + TOTAL_LAYERS + '，装备 ' + Object.keys(ITEMS).length + ' 件，出身 ' + HEROES.length + ' 个，难度 ' + TIERS.length + ' 档');
 

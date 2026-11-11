@@ -337,7 +337,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.14
+   中土远征 v0.15
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -357,11 +357,11 @@ const ATTRS = { valor:'勇武', cunning:'机敏', lore:'学识', spirit:'心志'
    通关率反而比第 4 档高得多 —— 难度曲线是断的。 */
 const TIERS = [
   { id:1, name:'初次远行', note:'标准规则，没有额外修正。', mods:{} },
-  { id:2, name:'长夜', note:'所有检定 DC +1。', mods:{ dc:1 } },
+  { id:2, name:'长夜', note:'所有检定 DC +2。', mods:{ dc:2 } },
   { id:3, name:'补给紧张', note:'在上一档之上，补给上限 −1。', mods:{ supply:-1 } },
-  { id:4, name:'阴影紧随', note:'在上一档之上，所有检定再 +1；进入荒野后每层一次追踪检定（失败 −1）。', mods:{ hunt:1, dc:1 } },
+  { id:4, name:'阴影紧随', note:'在上一档之上，进入荒野后每层一次追踪检定（失败 −1）；营地与休整的恢复减半（至少留 1 点）。', mods:{ hunt:1, campHalf:1 } },
   { id:5, name:'无援', note:'在上一档之上，荒野路耗 +1（隔层结算）。', mods:{ supplyDrain:1 } },
-  { id:6, name:'终局', note:'在上一档之上，营地与休整的恢复减半（至少留 1 点）、无法撤退、所有伤害 +1；抵达终点需通过 DC 16 检定。', mods:{ campHalf:1, noRetreat:1, finalDC:16, dmg:1 } }
+  { id:6, name:'终局', note:'在上一档之上，无法撤退、所有伤害 +1；抵达终点需通过 DC 16 检定。', mods:{ noRetreat:1, finalDC:16, dmg:1 } }
 ];
 
 const TIER_FLAGS = ['hunt','noRetreat','campHalf'];
@@ -635,6 +635,53 @@ const THREADS = [
     echoHalf:'你替他记过几样东西。后来连他的名字也想不起来了。',
     echoLost:'有人托你替他看一眼东边。你走到了，但没有看。'
   }
+  ,
+  {
+    id:'east', name:'替他看一眼东边',
+    intro:'临走时，村口一个老人叫住你。他眼睛不好，看人的时候要凑得很近。\n\n他说他儿子十年前往东去了，没有回来。他不要你找，也不要你带话。\n\n「你到了那边，帮我看看是什么样子。」他说，「回来告诉我。」',
+    steps:[
+      { at:1, title:'第一个往东的人',
+        text:()=>'出夏尔没多久，路上遇见过一个往东走的人。他走得比你快，背着一个空包，包上挂着一只铁杯子。\n\n你想叫住他问问，他已经拐过弯了。',
+        opts:[
+          { label:'追上去问他东边是什么样', fx:{supply:-1}, ok:{text:'他停下来，想了想，说他也没到过。\n\n他说他到过的最后一个村子，村口也有人在问同样的话。'}, thread:'push' },
+          { label:'不问，自己看', fx:{resolve:-1}, ok:{text:'你把路两边的样子记在心里：麦茬、篱笆、远处的树。\n\n这些都要说给那个老人听。'}, thread:'push' },
+          { label:'这件事先放一放', fx:{}, ok:{text:'你把这件事收起来，和干粮放在一处。'}, thread:'drop', gentle:true }
+        ] },
+      { at:5, title:'布理的城墙',
+        text:g=>'布理的城墙比夏尔的房子高。你站在墙根下往东看，只能看见墙。\n\n'
+          + (g.thread && g.thread.firstLayer ? '第 ' + g.thread.firstLayer + ' 程你为这件事停过一次。\n\n' : '')
+          + '墙那边是什么，要绕过去才知道。',
+        opts:[
+          { label:'绕到城墙外面去看', fx:{supply:-1}, ok:{text:'墙外是一片坡地，坡地尽头还是路。\n\n你看了很久，觉得这些说给老人听，他大概也想得出来。'}, thread:'push' },
+          { label:'问守门的人东边有什么', fx:{resolve:-1}, ok:{text:'他说有路，有荒野，有山。说完就不说了，像这些就是全部。'}, thread:'push' },
+          { label:'这件事先放一放', fx:{}, ok:{text:'你没有再往东看。城墙的影子很长，盖住了半条街。'}, thread:'drop', gentle:true }
+        ] },
+      { at:9, title:'看得见的那一头',
+        text:g=>{
+          const m = threadMemory();
+          return '天晴的时候，从高一点的地方能看见东边的尽头。\n\n不是山，也不是云。是一条线，很低，颜色比天深一点。'
+            + (m ? '\n\n来路上「' + m + '」那一处还记着。跟这里不像，但都是看得见、说不清的东西。' : '')
+            + '\n\n那条线一直在那儿，没有变过。';
+        },
+        opts:[
+          { label:'站到高处，把它看清楚', fx:{supply:-2}, ok:{text:'你爬上一块大石头。那条线还是那条线，没有更清楚。\n\n你看了很久，眼睛发酸。'}, thread:'push' },
+          { label:'闭上眼睛，想想怎么描述它', fx:{resolve:-1}, ok:{text:'你想了几个说法：像墙、像雾、像水。\n\n每一个都不对。'}, thread:'push' },
+          { label:'这件事先放一放', fx:{}, ok:{text:'你从石头上下来。那条线还在，你没有再抬头。'}, thread:'drop', gentle:true }
+        ] },
+      { at:12, title:'回去怎么说',
+        text:()=>'再往前就是终点了。你停下来，试着把那句话在心里说一遍——「那边是什么样子」。\n\n你发现自己说不出来。不是没看见，是看见了，但没有词。',
+        opts:[
+          { label:'照实说：我说不清', fx:{resolve:1}, ok:{text:'你想好了。就说这一句：我看见了，但我说不清。\n\n这大概是实话。'}, thread:'push' },
+          { label:'编一个他能听懂的说法', fx:{supply:-1}, ok:{text:'你说那边有路，有荒野，有山。\n\n说完，你觉得对不起他。'}, thread:'push' },
+          { label:'这件事就到这里', fx:{}, ok:{text:'你把这件事留在原地，和那条线一起。'}, thread:'drop', gentle:true }
+        ] }
+    ],
+    reward:{ renown:24, materials:5 },
+    echoDone:'你答应替一个老人看看东边。你看见了，但没能说清楚。',
+    echoHalf:'你一路都在替一个老人看东边。看到一半，就不知道该看什么了。',
+    echoLost:'临走时有人托你替他看一眼东边。你答应了。'
+  }
+
 ];
 
 /* 从行程记录里挑一件这一局真的遇到过的事。启程 / 收好 / 缘由自己不算。 */
@@ -778,6 +825,18 @@ const SLOTS = { main:'主手', off:'副手', body:'躯干', cloak:'披风', trin
 const SLOT_ORDER = ['main','off','body','cloak','trinket'];
 const QUALITY = ['普通','精良','稀有','传世'];
 
+/* 套装：两个槽位凑齐才算。它给的是「这一身本来就是一套」的感觉，
+   不是数值堆叠 —— 每套只加一点上限或一条属性。 */
+const SETS = [
+  { id:'ferry', name:'渡口旧物', pieces:['ferry_cloak','lantern'],
+    fx:{ resolveMax:1, lore:1 }, desc:'一个在渡口等过船的人留下的。' },
+  { id:'wilder', name:'荒野行者', pieces:['dark_hood','boiled_leather'],
+    fx:{ supplyMax:2, cunning:1 }, desc:'穿成这样，荒野会当你是一块石头。' },
+  { id:'barrow', name:'古冢来客', pieces:['barrow_blade','ash_stone'],
+    fx:{ valor:1, spirit:1, hpMax:1 }, desc:'两样都不该在活人手里。' }
+];
+
+
 const ITEMS = {
   /* 主手 */
   dagger:     { name:'精灵短匕', slot:'main', q:1, fx:{cunning:1}, desc:'刃上有一层极淡的银辉。' },
@@ -801,6 +860,19 @@ const ITEMS = {
   ring:       { name:'旧银戒', slot:'trinket', q:1, fx:{spirit:1}, desc:'内圈刻着一个名字，已经磨平了。' },
   pipe:       { name:'烟斗', slot:'trinket', q:0, fx:{resolveMax:1}, desc:'抽不抽都要带着。' },
   brooch:     { name:'叶形胸针', slot:'trinket', q:2, fx:{lore:1,spirit:1}, desc:'别在领口，能让人说真话。' },
+  /* ===== v0.15 新增 ===== */
+  barrow_blade:{ name:'冢中短剑', slot:'main', q:1, fx:{valor:1,spirit:1}, desc:'刃很短，握柄缠着已经发黑的布。' },
+  wood_axe:   { name:'樵夫的斧', slot:'main', q:0, fx:{valor:1,supplyMax:1}, desc:'砍过很多柴，刃口卷了。' },
+  lantern:    { name:'提灯', slot:'off', q:1, fx:{lore:1}, desc:'玻璃上有一道裂纹，火却从不灭。' },
+  wood_shield:{ name:'木盾', slot:'off', q:0, fx:{hpMax:1}, desc:'轻，挡得住一次。' },
+  boiled_leather:{ name:'煮硬的皮甲', slot:'body', q:1, fx:{hpMax:2}, desc:'硬得不像皮，穿上要人帮忙。' },
+  scale:      { name:'鳞甲', slot:'body', q:2, fx:{hpMax:4}, desc:'一片压一片，像鱼。' },
+  ferry_cloak:{ name:'渡口斗篷', slot:'cloak', q:1, fx:{supplyMax:1,spirit:1}, desc:'下摆被水泡过，硬了一圈。' },
+  dark_hood:  { name:'暗色兜帽', slot:'cloak', q:2, fx:{cunning:2}, desc:'帽檐压得低，看不清脸，也看不清你看哪。' },
+  bone_ring:  { name:'骨戒', slot:'trinket', q:0, fx:{spirit:1}, desc:'不知道是什么的骨头磨的，戴着不凉。' },
+  ash_stone:  { name:'烧不化的东西', slot:'trinket', q:3, fx:{spirit:2,lore:1}, desc:'黑的擦掉，底下是白的。不反光。' },
+  waybread:   { name:'硬面包', slot:'consume', q:0, fx:{hp:2,supply:2}, desc:'能砸开核桃。' },
+  miruvor:    { name:'蜜酒', slot:'consume', q:2, fx:{hp:3,resolve:1}, desc:'一小瓶，喝完手脚会暖起来。' },
   /* 消耗 */
   lambas:     { name:'兰巴斯', slot:'consume', q:1, fx:{hp:3}, desc:'一小块，能撑一整天。' },
   weed:       { name:'阿塞拉斯草', slot:'consume', q:0, fx:{hp:2,supply:1}, desc:'揉碎后有清苦的气味，伤口会安静下来。' },
@@ -2576,6 +2648,94 @@ const EVENTS = [
       { label:'收下，道谢', fx:{supply:1}, ok:{ text:'你嚼了一片，很甜，甜得有点意外。' } },
       { label:'说不用了', fx:{resolve:1}, ok:{ text:'她收回手，自己嚼了一片，说那就算了。' } }
     ] },
+  /* ===== v0.15：多阶段事件 —— 一次判定不够，场景还会继续 ===== */
+
+  { id:'shire_well_deep', region:'shire', type:'story', weight:11, title:'有绳的井',
+    text:'井台上绕着一圈新绳，三道，绳头压在一块石头下面。\n\n井栏是旧的，被水磨出一道深槽。往下看，水面很远，黑得很稳。',
+    options:[
+      { label:'抓着绳下去看看', check:{attr:'cunning',dc:13},
+        ok:{ text:'你踩住砖缝，一点一点往下。水气越来越凉，井壁越来越湿。', fx:{},
+          then:{
+            text:'离水面一人高的时候，你看见井壁上有一个洞。洞口封过砖，又被扒开了，砖是新的。',
+            options:[
+              { label:'伸手进去摸', check:{attr:'valor',dc:12},
+                ok:{ text:'摸到一只铁盒，比想象中沉。拖出来的时候，盒盖上的锈掉了一手。', fx:{renown:3,material:2,item:'dagger'} },
+                no:{ text:'手伸进去一半，摸到一件衣服。还是软的。你抽回手，指甲缝里全是黑泥。', fx:{shadow:2,hp:-1} } },
+              { label:'先看清洞口周围的砖', check:{attr:'lore',dc:11},
+                ok:{ text:'封洞的砖和井壁不是同一批。砖是新的，灰浆还没干透——有人最近才封上，又自己扒开。', fx:{renown:3,shadow:1,flag:{well_hole:true}} },
+                no:{ text:'井里太黑，只看得见砖的边。', fx:{} } }
+            ]
+          } },
+        no:{ text:'绳子在手里滑了一下。你低头看，水面上的东西散了。再抬头，井口只剩一小块天。', fx:{resolve:-1,supply:-1} } },
+      { label:'打一桶水就走', fx:{supply:2}, ok:{ text:'水很凉。桶提上来的时候，桶壁上挂着一层白霜。' } },
+      { label:'把绳子收上来，重新绕好', fx:{resolve:1}, ok:{ text:'你把绳子一圈圈绕回去。绕到最后，发现它比刚才短了一截。' } }
+    ] },
+
+  { id:'bree_stair', region:'bree', type:'story', weight:10, title:'没锁的塔门',
+    text:'塔门虚掩着，里面一段木梯往上，很陡，转着圈。\n\n上面有风，从很窄的地方漏下来，吹在脸上是凉的。\n\n梯子上有脚印，只有上去的，没有下来的。',
+    options:[
+      { label:'上去看看', check:{attr:'cunning',dc:12},
+        ok:{ text:'梯子很旧，但每一级都被踩得很实。你上到一半，风忽然停了。', fx:{},
+          then:{
+            text:'顶层是一间小屋，只有一张桌子和一把椅子。桌上摊着一张图，用四块石头压着。\n\n椅子是拉开的，像有人刚站起来。',
+            options:[
+              { label:'看那张图', check:{attr:'lore',dc:13},
+                ok:{ text:'图上画的是这一带的路，标了很多叉。有一个叉画在你来的方向，旁边写着两个字：别回。', fx:{renown:4,shadow:1,flag:{map_bree:true}} },
+                no:{ text:'图被水浸过，字都化了。你只看清一条河的走向。', fx:{} } },
+              { label:'坐下，等那个人回来', check:{attr:'spirit',dc:13},
+                ok:{ text:'你等了很久。太阳偏西的时候，楼梯响了。上来的是个孩子，看见你，站住了。\n\n他说这间屋子是他父亲留下的。', fx:{resolve:2,renown:2} },
+                no:{ text:'你坐到天黑，没有人回来。下楼的时候，椅子是推进去的。', fx:{resolve:-1} } }
+            ]
+          } },
+        no:{ text:'上到第七级，梯子响了一声。你退了下来。抬头看，上面多了一层灰。', fx:{resolve:-1} } },
+      { label:'在下面喊一声', check:{attr:'spirit',dc:11},
+        ok:{ text:'没有人应。但声音传上去之后，过了很久才回来，比该有的时间长。', fx:{resolve:1,shadow:1} },
+        no:{ text:'你的声音在塔里转了两圈，散了。', fx:{} } },
+      { label:'把门关好，继续走', fx:{}, ok:{ text:'你把门推上。门自己又开了一条缝。' } }
+    ] },
+
+  { id:'wild_ice', region:'wild', type:'encounter', weight:11, title:'结冰的河',
+    text:'河面结着冰，一直铺到对岸，看不出哪里薄哪里厚。\n\n冰上有一道旧车辙，已经冻在里面，从岸边一直通到对岸。\n\n对岸的树是黑的，没有叶子。',
+    options:[
+      { label:'踩着车辙走过去', check:{attr:'cunning',dc:13},
+        ok:{ text:'你踩在车辙里，一步步走。走到河心，脚底下响了一声，很闷。', fx:{},
+          then:{
+            text:'冰面上裂开一道白线，从你左脚前面一直伸到右边。\n\n裂得很快，但没有塌。',
+            options:[
+              { label:'趴下，把重量摊开，慢慢挪', check:{attr:'valor',dc:12},
+                ok:{ text:'你趴下去，脸贴着冰。冰是透明的，底下有水在流，很慢。\n\n你挪了很久，挪到对岸。站起来的时候，腿在抖。', fx:{renown:4,hp:-1,resolve:1} },
+                no:{ text:'你趴下去，冰又响了一声。你不敢动，趴了很久，直到手脚都麻了才挪回去。', fx:{hp:-2,supply:-2} } },
+              { label:'站起来跑', check:{attr:'cunning',dc:14},
+                ok:{ text:'你跑。冰在脚下响，但没有塌。冲上岸的时候，回头看见冰面已经碎了一片。', fx:{renown:3,supply:-1} },
+                no:{ text:'第三步就下去了。水冷得像刀子。你抓着冰沿爬上来，衣服全湿了。', fx:{hp:-4,supply:-3} } }
+            ]
+          } },
+        no:{ text:'走到一半，脚下的冰是软的。你退回来，鞋已经湿透。', fx:{hp:-1,supply:-1} } },
+      { label:'沿河找浅滩', check:{attr:'valor',dc:11},
+        ok:{ text:'走了半个时辰，找到一处窄口，水只到膝盖。你趟了过去，脚冻得没有知觉。', fx:{hp:-1,supply:-1,renown:1} },
+        no:{ text:'河岸越走越陡，最后是一道断崖。你只能回来。', fx:{supply:-2} } },
+      { label:'绕远路', fx:{supply:-2}, ok:{ text:'你沿河往下游走，绕了很久。天黑之前过了河，走的是桥。' } }
+    ] },
+
+  { id:'wild_fire_owner', region:'wild', type:'encounter', weight:11, title:'火堆的主人',
+    text:'火还在烧，柴是新的，火边铺着一张皮子，皮子上有压过的印。\n\n没有人。但附近有声音——不是风，是有人在很远的地方走路，踩在碎石上。',
+    options:[
+      { label:'坐下烤火，等他回来', check:{attr:'spirit',dc:11},
+        ok:{ text:'火很暖。你坐下没多久，脚步声近了。', fx:{hp:2},
+          then:{
+            text:'一个人从石头后面转出来，手里提着一串东西。他看见你，没有停，也没有加快。\n\n走到火边，他把东西放下，坐到了对面。',
+            options:[
+              { label:'先开口，说明自己只是路过', check:{attr:'spirit',dc:12},
+                ok:{ text:'他听完，点了点头，把手里那串东西分了一半给你。是几只烤过的鸟。\n\n他说他一个人在这儿住了两年。', fx:{supply:3,resolve:1,renown:2} },
+                no:{ text:'他听完，没有接话。你把身上的一块干粮放在石头上，站起来走了。', fx:{supply:-1} } },
+              { label:'不说话，看他要做什么', check:{attr:'cunning',dc:12},
+                ok:{ text:'他自顾自烤东西，吃了一半，把剩下的推到你这边。整晚他没有说一句话。\n\n天亮时他已经走了，火还留着。', fx:{supply:2,hp:1,flag:{fire_met:true}} },
+                no:{ text:'他吃完了，站起来，把皮子卷走。走之前看了你一眼。你握紧了手边的东西。', fx:{resolve:-1,shadow:1} } }
+            ]
+          } },
+        no:{ text:'你坐下，火很暖。脚步声停了。\n\n你等到天亮，他没有回来。火堆边多了一双鞋。', fx:{hp:1,shadow:1} } },
+      { label:'不坐，绕开这堆火', fx:{supply:-1}, ok:{ text:'你从火堆外侧绕过去。走出很远，回头看了一眼——火还亮着，比刚才小。' } }
+    ] },
 
   /* ===== v0.14：世界记得你 —— 前面写下的 flag，这里必须有人接 ===== */
 
@@ -2717,7 +2877,152 @@ const EVENTS = [
         no:{ text:'你念错了。雾里有什么东西笑了一下，很短，像喘气。', fx:{shadow:2,resolve:-1} } },
       { label:'不回头，加快脚步', fx:{supply:-2},
         ok:{ text:'你走到天快黑。后面的脚步声一直没断，也没近。' } }
+    ] },
+
+  /* ===== v0.15：地区事件扩容（每区 4 条） ===== */
+
+  { id:'shire_dyke', region:'shire', type:'story', weight:10, title:'河堤上的缺口',
+    text:'河堤上有一个缺口，不宽，两步就能跨过去。水从缺口里渗出来，在堤脚积成一小片。\n\n缺口是新的，土还是湿的。堤上有人走过，脚印一直通到下游。',
+    options:[
+      { label:'把缺口填上', check:{attr:'valor',dc:12},
+        ok:{ text:'土很沉，你搬了十几趟。填到最后，水不渗了。', fx:{hp:-1,renown:2} },
+        no:{ text:'土塌下来，你半个身子陷进去。爬出来的时候，一只鞋找不到了。', fx:{hp:-2} } },
+      { label:'看脚印通到哪', check:{attr:'cunning',dc:11},
+        ok:{ text:'脚印通到下游一处浅滩，在那里没了。浅滩边上有半截绳子。', fx:{renown:2,flag:{dyke_trace:true}} },
+        no:{ text:'脚印在草里断了。', fx:{} } },
+      { label:'不管，从堤上绕过去', fx:{}, ok:{ text:'你从堤上绕过去。走了很远，还听得见水声。' } }
+    ] },
+
+  { id:'shire_churn', region:'shire', type:'story', weight:9, title:'还在动的搅奶杆',
+    text:'一间小屋的门开着，里面有木桶和搅奶的杆。杆还在动，慢慢地，一下一下。\n\n屋里没有人。',
+    options:[
+      { label:'进去看看', check:{attr:'spirit',dc:11},
+        ok:{ text:'屋里有个小女孩，坐在桶边打瞌睡。她说她娘去地里了，让她看着。', fx:{resolve:2,supply:1} },
+        no:{ text:'杆停了。屋里很暗，只有桶里的一点白。', fx:{resolve:-1} } },
+      { label:'看桶里的东西', check:{attr:'lore',dc:11},
+        ok:{ text:'奶已经分层了。上面是清的，下面是稠的。这一桶放了一整天。', fx:{renown:1,supply:1} },
+        no:{ text:'桶太深，看不清。', fx:{} } },
+      { label:'把门带上，走', fx:{}, ok:{ text:'你把门带上。门没关严，留了一条缝。' } }
+    ] },
+
+  { id:'shire_grave', region:'shire', type:'story', weight:8, title:'篱笆里的石头',
+    text:'篱笆围着一小块地，里面立着几块石头，没有字。\n\n最靠边的一块是新的，土还没有压实。石头前面放着一小把野花，已经蔫了。',
+    options:[
+      { label:'把花扶起来', check:{attr:'spirit',dc:11},
+        ok:{ text:'你把花扶正，用土压住花茎。做完站了一会儿。', fx:{resolve:2} },
+        no:{ text:'花茎断了。你把它放回原处。', fx:{resolve:-1} } },
+      { label:'看石头的排列', check:{attr:'lore',dc:12},
+        ok:{ text:'石头都朝东。只有新的那块朝西。', fx:{renown:2,shadow:1,flag:{grave_west:true}} },
+        no:{ text:'石头都一样，没有字。', fx:{} } },
+      { label:'不进去，从篱笆外走', fx:{}, ok:{ text:'你从篱笆外绕过去。' } }
+    ] },
+
+  { id:'shire_kite', region:'shire', type:'camp', weight:9, title:'坡上的风筝',
+    text:'田边的坡上有几个孩子在放风筝。风筝是用旧布拼的，飞得不高，但一直在飞。\n\n他们看见你，没有停，也没有叫你。',
+    options:[
+      { label:'站着看一会儿', fx:{resolve:1}, ok:{ text:'你看了很久。风筝线在风里发出很细的声音。' } },
+      { label:'帮他们把风筝放高', check:{attr:'cunning',dc:11},
+        ok:{ text:'你接过线，跑了几步。风筝上去了一截，孩子们叫起来。', fx:{resolve:2,supply:-1} },
+        no:{ text:'线断了。风筝挂在树上。孩子们没有怪你，只是看着树。', fx:{resolve:-1} } },
+      { label:'走过去', fx:{}, ok:{ text:'你走过去。身后有孩子在喊，听不清喊什么。' } }
+    ] },
+
+  { id:'bree_queue', region:'bree', type:'story', weight:9, title:'城门前的队',
+    text:'城门口排着一队人，不算长，但不动。守门的人在翻一个挑担子的货。\n\n队伍里没有人说话。',
+    options:[
+      { label:'排到队尾等', fx:{supply:-1}, ok:{ text:'等了很久。轮到你的时候，守门的只看了你一眼就放行了。' } },
+      { label:'看他们在查什么', check:{attr:'cunning',dc:12},
+        ok:{ text:'查的是铁器。货担里有几把刀，都用布裹着。', fx:{renown:2} },
+        no:{ text:'人挡着，看不见。', fx:{} } },
+      { label:'绕到另一个门', fx:{supply:-1}, ok:{ text:'你绕了半圈。另一个门也排着队。' } }
+    ] },
+
+  { id:'bree_rope', region:'bree', type:'story', weight:8, title:'卖绳的人',
+    text:'一个人坐在路边，面前摆着几卷绳，粗的细的都有。他不吆喝，只是把绳头一个个解开，再系回去。\n\n他的手指很快。',
+    options:[
+      { label:'买一卷细的', fx:{supply:-1}, ok:{ text:'绳很结实。他找钱的时候，多给了你一小截。', fx:{supply:2} } },
+      { label:'看他的结法', check:{attr:'lore',dc:11},
+        ok:{ text:'他打的结和夏尔那边不一样，收口朝外，一拉就开。', fx:{renown:2} },
+        no:{ text:'他的手指太快。', fx:{} } },
+      { label:'不买，走过去', fx:{}, ok:{ text:'你走过去。身后有绳子被拉紧的声音。' } }
+    ] },
+
+  { id:'bree_loft', region:'bree', type:'story', weight:9, title:'阁楼上住的人',
+    text:'客栈的阁楼上有人住。楼梯口拉着一块布，布后面有灯。\n\n老板说那间不租，住的人已经住了三年。',
+    options:[
+      { label:'上去敲门', check:{attr:'spirit',dc:12},
+        ok:{ text:'开门的是个老人，屋里堆满了纸。他说他在抄这一带的地名。', fx:{renown:3,resolve:1} },
+        no:{ text:'没有人应。灯一直亮着。', fx:{} } },
+      { label:'问老板那个人是谁', check:{attr:'spirit',dc:11},
+        ok:{ text:'老板说他不知道名字，只知道每月有人送粮上来。', fx:{resolve:1,shadow:1} },
+        no:{ text:'老板去招呼别的客人了。', fx:{} } },
+      { label:'不上去了', fx:{}, ok:{ text:'你从楼梯口走过。布后面的灯暗了一下。' } }
+    ] },
+
+  { id:'bree_drum', region:'bree', type:'encounter', weight:9, title:'城西的鼓',
+    text:'夜里有人在敲鼓。不快，一下，隔很久，又一下。\n\n不是庆祝，也不是报警。鼓声从城西来，一直在同一个位置。',
+    options:[
+      { label:'朝鼓声走', check:{attr:'valor',dc:12},
+        ok:{ text:'城西的空地上有个老人，面前一只旧鼓。他说他在等一个人。', fx:{renown:3,shadow:1} },
+        no:{ text:'走了很久，鼓声一直在前面，没有更近。', fx:{resolve:-1} } },
+      { label:'在窗边听', check:{attr:'lore',dc:11},
+        ok:{ text:'鼓点有规律：三下一停，停的时间一样长。像是在数什么。', fx:{renown:2} },
+        no:{ text:'听不出规律。', fx:{} } },
+      { label:'关窗睡觉', fx:{hp:2}, ok:{ text:'鼓声敲了一夜。你睡着了。' } }
+    ] },
+
+  { id:'wild_hail', region:'wild', type:'encounter', weight:9, title:'冰雹',
+    text:'天忽然暗下来。先落了几颗，砸在石头上弹起来。然后是一整片。\n\n没有地方躲。',
+    options:[
+      { label:'把包顶在头上，快走', check:{attr:'cunning',dc:11},
+        ok:{ text:'你走了半个时辰。肩上青了几块，包被砸出一个洞。', fx:{hp:-2,supply:-1} },
+        no:{ text:'你跑错了方向，绕回来时，天已经晴了。', fx:{hp:-2,supply:-2,resolve:-1} } },
+      { label:'找一块大石头背风', check:{attr:'lore',dc:11},
+        ok:{ text:'石头背面是干的。你缩在那儿，听冰雹打在石头上。', fx:{hp:-1,resolve:1} },
+        no:{ text:'石头太小，挡不住。', fx:{hp:-2} } },
+      { label:'站着不动', check:{attr:'valor',dc:12},
+        ok:{ text:'冰雹打在身上，很疼。过了一会儿就麻了。', fx:{hp:-3,renown:2} },
+        no:{ text:'你站不住，蹲了下去。', fx:{hp:-2,resolve:-1} } }
+    ] },
+
+  { id:'wild_ring', region:'wild', type:'story', weight:10, title:'一圈石头',
+    text:'一圈石头围着一块平地，圈不大，中间能站三四个人。\n\n石头一半埋在土里，露出来的部分被磨得很光。圈中央的草是短的，像常有人踩。',
+    options:[
+      { label:'站到圈里', check:{attr:'spirit',dc:12},
+        ok:{ text:'站在中间，风小了一些。你说了一句话，声音没有传出去。', fx:{renown:3,shadow:1} },
+        no:{ text:'没有变化。石头还是石头。', fx:{} } },
+      { label:'数石头', check:{attr:'lore',dc:11},
+        ok:{ text:'十三块。十三不是这一带的数。', fx:{renown:2,flag:{ring_thirteen:true}} },
+        no:{ text:'数到一半就乱了。', fx:{} } },
+      { label:'绕开走', fx:{}, ok:{ text:'你从圈外绕过去。' } }
+    ] },
+
+  { id:'wild_hand', region:'wild', type:'encounter', weight:9, title:'石壁上的手印',
+    text:'石壁上有手印，一共五个，高低不一。\n\n印子比你的手大，指节很长。石头是硬的，手印却像按在泥上一样深。',
+    options:[
+      { label:'把手按上去比一比', check:{attr:'valor',dc:11},
+        ok:{ text:'你的手只到它的掌心。石头是温的。', fx:{renown:2,shadow:1} },
+        no:{ text:'手刚碰上去就缩回来了。石头太凉。', fx:{hp:-1} } },
+      { label:'看手印的排列', check:{attr:'lore',dc:12},
+        ok:{ text:'五个手印在往上走。最上面那个已经够到石壁的顶了。', fx:{renown:3,flag:{handprints:true}} },
+        no:{ text:'石壁上苔藓太厚，看不清。', fx:{} } },
+      { label:'不碰，走过去', fx:{}, ok:{ text:'你贴着石壁走过去。' } }
+    ] },
+
+  { id:'wild_bell', region:'wild', type:'encounter', weight:8, title:'远处的铃',
+    text:'很远的地方有铃声。不是一下，是连续地响，像有什么在走，走一步响一下。\n\n这一带没有羊，也没有人。',
+    options:[
+      { label:'朝铃声走', check:{attr:'valor',dc:12},
+        ok:{ text:'走了半个时辰，铃声一直在前面。天黑了，你停下来。铃声也停了。', fx:{supply:-2,shadow:1,renown:1} },
+        no:{ text:'你跟着走了很久，最后发现是在绕圈。', fx:{supply:-2,hp:-1} } },
+      { label:'听它响多久', check:{attr:'lore',dc:11},
+        ok:{ text:'响了很久。中间有一次停顿，比别的长。停的时候你听见了自己的呼吸。', fx:{resolve:1,shadow:1} },
+        no:{ text:'听着听着就睡着了。', fx:{hp:1} } },
+      { label:'捂住耳朵，快走', check:{attr:'cunning',dc:11},
+        ok:{ text:'走出一段，铃声没了。你松开手，还是没有。', fx:{hp:-1} },
+        no:{ text:'铃声一直跟着，直到你跑起来。', fx:{hp:-2,supply:-1} } }
     ] }
+
 ];
 
 /* 闲事的余味：选完之后，下一程遇到普通事件时在正文末尾多一句。
@@ -3023,6 +3328,169 @@ function regionVariant(ev, region){
 }
 
 const TEXTS = {};
+
+/* ===== v0.15：地区事件扩容正文 ===== */
+TEXTS.shire_dyke = {
+  title: '河堤上的缺口',
+  text: '河堤上有一个缺口，不宽，两步就能跨过去。水从缺口里渗出来，在堤脚积成一小片，很清。\n\n缺口是新的，土还是湿的，塌下来的部分堆在一边。堤上有人走过，脚印一直通到下游。',
+  opts: [
+    { ok: '土很沉，一筐一筐搬了十几趟。填到最后，水不渗了。\n\n你在上面踩实，脚印留在新土上。', no: '土塌下来，你半个身子陷进去。\n\n爬出来的时候，一只鞋找不到了，脚上是泥。' },
+    { ok: '脚印通到下游一处浅滩，在那里没了。\n\n浅滩边上有半截绳子，绳子的一头系在石头上，另一头是断的。', no: '脚印在草里断了。\n\n你在草里找了一圈，只找到几个新踩的窝。' },
+    { ok: '你从堤上绕过去。\n\n走了很远，还听得见水声。' }
+  ]
+};
+
+TEXTS.shire_churn = {
+  title: '还在动的搅奶杆',
+  text: '一间小屋的门开着，里面有木桶和搅奶的杆。杆还在动，慢慢地，一下一下，节奏很稳。\n\n屋里没有人。\n\n门口的台阶上放着一双小鞋。',
+  opts: [
+    { ok: '屋里有个小女孩，坐在桶边打瞌睡，头一点一点。她说她娘去地里了，让她看着。\n\n她已经看了很久。', no: '杆停了。\n\n屋里很暗，只有桶里的一点白。你喊了一声，没有人应。' },
+    { ok: '奶已经分层了。上面是清的，下面是稠的。\n\n这一桶放了一整天，早就该搅完了。', no: '桶太深，看不清。\n\n你把手伸进去，摸到一层厚厚的、凉的东西。' },
+    { ok: '你把门带上。\n\n门没关严，留了一条缝。回头时，杆又动了一下。' }
+  ]
+};
+
+TEXTS.shire_grave = {
+  title: '篱笆里的石头',
+  text: '篱笆围着一小块地，里面立着几块石头，都没有字。\n\n最靠边的一块是新的，土还没有压实。石头前面放着一小把野花，已经蔫了，颜色还在。',
+  opts: [
+    { ok: '你把花扶正，用土压住花茎。\n\n做完站了一会儿。风把花瓣吹掉了一片。', no: '花茎断了。\n\n你把它放回原处，摆得和刚才一样。' },
+    { ok: '石头都朝东。只有新立的那块朝西。\n\n你绕着走了一圈，确认自己没有看错。', no: '石头都一样，看不出朝向，也没有字。' },
+    { ok: '你从篱笆外绕过去。\n\n里面很静，连虫子的声音都没有。' }
+  ]
+};
+
+TEXTS.shire_kite = {
+  title: '坡上的风筝',
+  text: '田边的坡上有几个孩子在放风筝。风筝是用旧布拼的，颜色不齐，飞得不高，但一直在飞。\n\n他们看见你，没有停，也没有叫你。',
+  opts: [
+    { ok: '你站着看了一会儿。\n\n风筝线在风里发出很细的声音，像有人在很远的地方说话。' },
+    { ok: '你接过线，跑了几步。风筝上去了一截，孩子们叫起来。\n\n线在你手里绷得很紧。', no: '线断了。风筝挂在树上，越挂越深。\n\n孩子们没有怪你，只是看着树。' },
+    { ok: '你走过去。\n\n身后有孩子在喊，听不清喊什么。' }
+  ]
+};
+
+TEXTS.bree_queue = {
+  title: '城门前的队',
+  text: '城门口排着一队人，不算长，但不动。守门的人在翻一个挑担子的货，翻得很仔细。\n\n队伍里没有人说话。有人换了一次脚。',
+  opts: [
+    { ok: '等了很久。轮到你的时候，守门的只看了你一眼，就摆手放行了。\n\n你没有回头。' },
+    { ok: '查的是铁器。货担里有几把刀，都用布裹着，一把一把解开又裹回去。\n\n挑担子的人一直低着头。', no: '人挡着，看不见。你只听见铁碰铁的声音，很轻。' },
+    { ok: '你绕了半圈。\n\n另一个门也排着队，队比这边长。' }
+  ]
+};
+
+TEXTS.bree_rope = {
+  title: '卖绳的人',
+  text: '一个人坐在路边，面前摆着几卷绳，粗的细的都有。他不吆喝，只是把绳头一个个解开，再系回去。\n\n他的手指很快，系出来的结都一样大。',
+  opts: [
+    { ok: '绳很结实，你拉了拉，纹丝不动。\n\n他找钱的时候，多给了你一小截，说路上用得上。' },
+    { ok: '他打的结和夏尔那边不一样：收口朝外，一拉就开。\n\n这样的结不是给自己用的，是给别人留退路。', no: '他的手指太快，跟了几遍也没看清。' },
+    { ok: '你走过去。\n\n身后有绳子被拉紧的声音，很长。' }
+  ]
+};
+
+TEXTS.bree_loft = {
+  title: '阁楼上住的人',
+  text: '客栈的阁楼上有人住。楼梯口拉着一块布，布后面有灯，灯光透出来是一条窄的。\n\n老板说那间不租，住的人已经住了三年。',
+  opts: [
+    { ok: '开门的是个老人，屋里堆满了纸，纸从桌上一直堆到床边。\n\n他说他在抄这一带的地名，抄了三年，还没抄完。', no: '没有人应。\n\n灯一直亮着。你敲了三次，第三次之后，灯灭了。' },
+    { ok: '老板说他不知道名字，只知道每月有人送粮上来，放在楼梯口。\n\n「他自己下来拿。」老板说，「我没见过他。」', no: '老板去招呼别的客人了，围裙上还沾着水。' },
+    { ok: '你从楼梯口走过。\n\n布后面的灯暗了一下，又亮了。' }
+  ]
+};
+
+TEXTS.bree_drum = {
+  title: '城西的鼓',
+  text: '夜里有人在敲鼓。不快，一下，隔很久，又一下。\n\n不是庆祝，也不是报警。鼓声从城西来，一直在同一个位置，没有移动过。',
+  opts: [
+    { ok: '城西的空地上有个老人，面前一只旧鼓，鼓面补过。\n\n他说他在等一个人。问等谁，他说等一个说过会回来的人。', no: '走了很久，鼓声一直在前面，没有更近。\n\n你停下来，鼓声也停了。' },
+    { ok: '鼓点有规律：三下一停，停的时间一样长。\n\n像是在数什么，也像是在等什么数完。', no: '听不出规律。风把鼓声吹散了几次。' },
+    { ok: '鼓声敲了一夜。你睡着了。\n\n醒来时天刚亮，鼓声停了。' }
+  ]
+};
+
+TEXTS.wild_hail = {
+  title: '冰雹',
+  text: '天忽然暗下来。先落了几颗，砸在石头上弹起来，很脆。\n\n然后是一整片。\n\n没有地方躲。',
+  opts: [
+    { ok: '你走了半个时辰。肩上青了几块，包被砸出一个洞，里面的东西湿了一半。', no: '你跑错了方向，绕回来时天已经晴了。\n\n地上的冰还没化，一颗一颗，像小的石头。' },
+    { ok: '石头背面是干的。你缩在那儿，听冰雹打在石头上，声音很近。', no: '石头太小，挡不住。你换了两处，都不行。' },
+    { ok: '冰雹打在身上，很疼。过了一会儿就麻了，反而不觉得疼。', no: '你站不住，蹲了下去。\n\n冰雹打在背上，一下一下。' }
+  ]
+};
+
+TEXTS.wild_ring = {
+  title: '一圈石头',
+  text: '一圈石头围着一块平地，圈不大，中间能站三四个人。\n\n石头一半埋在土里，露出来的部分被磨得很光，像被很多手摸过。圈中央的草是短的，像常有人踩。',
+  opts: [
+    { ok: '站在中间，风小了一些。\n\n你说了一句话，声音没有传出去，也没有回来。', no: '没有变化。石头还是石头，草还是草。' },
+    { ok: '十三块。\n\n十三不是这一带的数。这一带论七，石堆是七块。', no: '数到一半就乱了。重数了一次，数目不一样。' },
+    { ok: '你从圈外绕过去。\n\n走到对面回头看，圈里还是空的。' }
+  ]
+};
+
+TEXTS.wild_hand = {
+  title: '石壁上的手印',
+  text: '石壁上有手印，一共五个，高低不一。\n\n印子比你的手大，指节很长。石头是硬的，手印却像按在泥上一样深。\n\n最下面那个手印离地只有一尺。',
+  opts: [
+    { ok: '你的手只到它的掌心。\n\n石头是温的，像刚有人松开。', no: '手刚碰上去就缩回来了。\n\n石头太凉，凉得不像石头。' },
+    { ok: '五个手印在往上走，间距越来越大，最后一个够到了石壁的顶。\n\n顶上什么也没有。', no: '石壁上苔藓太厚，只看得清两个。' },
+    { ok: '你贴着石壁走过去。\n\n走出很远，手心里还有一点凉。' }
+  ]
+};
+
+TEXTS.wild_bell = {
+  title: '远处的铃',
+  text: '很远的地方有铃声。不是一下，是连续地响，像有什么在走，走一步响一下。\n\n这一带没有羊，也没有人。\n\n铃声不快，也不慢，和你的脚步差不多。',
+  opts: [
+    { ok: '走了半个时辰，铃声一直在前面。\n\n天黑了，你停下来。铃声也停了。', no: '你跟着走了很久，最后发现是在绕圈——脚下的石头，你已经见过三次。' },
+    { ok: '响了很久。中间有一次停顿，比别的长。\n\n停的时候，你听见了自己的呼吸。', no: '听着听着就睡着了。\n\n醒来时天已经亮，铃声没了。' },
+    { ok: '走出一段，铃声没了。你松开手，还是没有。', no: '铃声一直跟着，直到你跑起来才断。\n\n你跑了很久。' }
+  ]
+};
+
+
+/* ===== v0.15：多阶段事件的第一段正文 ===== */
+TEXTS.shire_well_deep = {
+  title: '有绳的井',
+  text: '井台上绕着一圈新绳，三道，绳头压在一块石头下面。\n\n井栏是旧的，被水磨出一道深槽，槽里积着黑泥。往下看，水面很远，黑得很稳，看不见底，也看不见自己的脸。',
+  opts: [
+    { ok: '你踩住砖缝，一点一点往下。水气越来越凉，井壁越来越湿，手心里的绳开始发涩。', no: '绳子在手里滑了一下。你低头看，水面上的东西散了。\n\n再抬头，井口只剩一小块天，比刚才小。' },
+    { ok: '水很凉。桶提上来的时候，桶壁上挂着一层白霜，在太阳底下化得很快。' },
+    { ok: '你把绳子一圈圈绕回去。绕到最后，发现它比刚才短了一截。\n\n你把石头压回去，石头下面还压着半截绳头。' }
+  ]
+};
+
+TEXTS.bree_stair = {
+  title: '没锁的塔门',
+  text: '塔门虚掩着，里面一段木梯往上，很陡，转着圈。\n\n上面有风，从很窄的地方漏下来，吹在脸上是凉的，带着一点灰味。\n\n梯子上有脚印，只有上去的，没有下来的。',
+  opts: [
+    { ok: '梯子很旧，但每一级都被踩得很实，中间磨出一道浅槽。\n\n你上到一半，风忽然停了。', no: '上到第七级，梯子响了一声，很脆。\n\n你退了下来。抬头看，上面多了一层灰，刚落下来的。' },
+    { ok: '没有人应。但声音传上去之后，过了很久才回来，比该有的时间长。', no: '你的声音在塔里转了两圈，散了。\n\n塔顶有一小块天，云走得很快。' },
+    { ok: '你把门推上。\n\n走出几步回头看，门自己又开了一条缝。' }
+  ]
+};
+
+TEXTS.wild_ice = {
+  title: '结冰的河',
+  text: '河面结着冰，一直铺到对岸，看不出哪里薄哪里厚。\n\n冰上有一道旧车辙，已经冻在里面，从岸边一直通到对岸。车辙的两侧有碎冰，被风推成一堆一堆。\n\n对岸的树是黑的，没有叶子。',
+  opts: [
+    { ok: '你踩在车辙里，一步步走。冰很硬，鞋底不滑。\n\n走到河心，脚底下响了一声，很闷。', no: '走到一半，脚下的冰是软的，踩下去有一点回弹。\n\n你退回来，鞋已经湿透。' },
+    { ok: '走了半个时辰，找到一处窄口，水只到膝盖。你趟了过去，脚冻得没有知觉，上岸后很久才缓过来。', no: '河岸越走越陡，最后是一道断崖，下面还是冰。\n\n你只能回来。' },
+    { ok: '你沿河往下游走，绕了很久。天黑之前过了河，走的是桥。\n\n桥很窄，但很结实。' }
+  ]
+};
+
+TEXTS.wild_fire_owner = {
+  title: '火堆的主人',
+  text: '火还在烧，柴是新的，火边铺着一张皮子，皮子上有压过的印，很深。\n\n没有人。\n\n但附近有声音——不是风，是有人在很远的地方走路，踩在碎石上，一步，一步。',
+  opts: [
+    { ok: '火很暖。你坐下没多久，脚步声近了。', no: '你坐下，火很暖。脚步声停了。\n\n你等到天亮，他没有回来。火堆边多了一双鞋，摆得很整齐。' },
+    { ok: '你从火堆外侧绕过去。走出很远，回头看了一眼——火还亮着，比刚才小。' }
+  ]
+};
+
 
 /* ===== v0.14：接 flag 的后续事件正文 ===== */
 TEXTS.shire_mill_return = {
@@ -4918,6 +5386,13 @@ function equippedFx(loadout){
       else out.hpMax += plus;
     }
   }
+  /* 套装：装配栏里凑齐才算，卸下一件就散 */
+  const worn = Object.keys(lo).map(k=>lo[k]).filter(Boolean);
+  for(const st of SETS){
+    if(st.pieces.every(pid => worn.indexOf(pid) >= 0)){
+      for(const k in st.fx) out[k] = (out[k] || 0) + st.fx[k];
+    }
+  }
   return out;
 }
 
@@ -5962,7 +6437,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.14</div>
+    <div class="eyebrow">文字跑团 · v0.15</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十五程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -6368,6 +6843,29 @@ function renderArmory(){
     </div>`;
   }).join('') : `<p class="note">军械库是空的。把局内捡到的东西「收好」并带回，它们才会出现在这里。</p>`;
 
+  /* 套装：凑齐两件才算。装配栏里换了任何一件，这里立刻跟着变。 */
+  const wornIds = Object.values(m.loadout || {}).filter(Boolean);
+  const setRows = SETS.map(st=>{
+    const have = st.pieces.filter(pid=>wornIds.indexOf(pid) >= 0);
+    const on = have.length === st.pieces.length;
+    const names = st.pieces.map(pid=>{
+      const it = ITEMS[pid];
+      return (have.indexOf(pid) >= 0 ? '' : '缺 ') + (it ? it.name : pid);
+    }).join(' · ');
+    const fxTxt = Object.keys(st.fx).map(k=>{
+      const label = ATTRS[k] ? ATTRS[k] : ({hpMax:'生命上限',supplyMax:'补给上限',resolveMax:'决心上限'}[k] || k);
+      return label + ' +' + st.fx[k];
+    }).join(' · ');
+    return `<div class="setrow" style="padding:9px 0;border-top:1px solid var(--line-2)">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">
+        <b style="color:${on?'var(--gold)':'var(--ink-2)'};font-weight:500">${esc(st.name)}</b>
+        <span class="mono" style="color:var(--ink-3)">${have.length}/${st.pieces.length}${on?' · 已生效':''}</span>
+      </div>
+      <div class="note" style="margin-top:3px">${esc(st.desc)}</div>
+      <div class="note" style="margin-top:2px;color:var(--ink-3)">${esc(names)} · ${fxTxt}</div>
+    </div>`;
+  }).join('');
+
   app.innerHTML = `
   <div class="topbar">
     <div class="brand" onclick="openCampBack()">军械库<small>ARMORY</small></div>
@@ -6379,6 +6877,12 @@ function renderArmory(){
     <div style="margin-top:8px">${slotRows}</div>
     <p class="note">强化每级给主属性 +1；到达 +5 封顶。锻造失败不会掉级。</p>
     ${forgeIsHalf() ? '<p class="note" style="color:var(--gold)">上一次出门的是矮人。炉火的手艺还在：锻造费用减半。</p>' : ''}
+  </div>
+
+  <div class="card pad" style="margin-top:14px">
+    <h2 style="font-size:16px">套装</h2>
+    <p class="note" style="margin-top:4px">两件同时装配才算，卸下一件就散。</p>
+    <div style="margin-top:6px">${setRows}</div>
   </div>
 
   <div class="card pad" style="margin-top:14px">
@@ -7005,6 +7509,21 @@ function settleCheck(tier, traitNote){
   if(ok && o.reframe){
     const ttl = G.event.title;
     if(applyReframe(o.reframe)){ pushEcho({ t:'reframe', once:true, title:ttl }); return; }
+  }
+
+  /* 多阶段事件：一段不够。成功之后场景继续，第二段接着要一个决定。
+     它不新增界面，只把 G.event 换成第二段 —— 判定、选项、代价全部走原来那套。 */
+  if(ok && branch.then && Array.isArray(branch.then.options) && branch.then.options.length){
+    const tt = G.event.title, tyy = G.event.type;
+    G.event = {
+      id: 's_L' + G.layer + '_' + G.at,
+      title: tt, type: tyy, kicker:'接着',
+      text: (branch.text || '') + (branch.then.text ? '\n\n' + branch.then.text : ''),
+      options: branch.then.options,
+      fxOut: changes
+    };
+    G.pending = null; G.rerolls = 0; G.screen = 'event'; recalc(); render();
+    return;
   }
 
   if(o.final){
