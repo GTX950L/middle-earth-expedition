@@ -337,7 +337,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.13
+   中土远征 v0.14
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -359,9 +359,9 @@ const TIERS = [
   { id:1, name:'初次远行', note:'标准规则，没有额外修正。', mods:{} },
   { id:2, name:'长夜', note:'所有检定 DC +1。', mods:{ dc:1 } },
   { id:3, name:'补给紧张', note:'在上一档之上，补给上限 −1。', mods:{ supply:-1 } },
-  { id:4, name:'阴影紧随', note:'在上一档之上，进入荒野后每层一次追踪检定（失败 −2），路耗 +1。', mods:{ hunt:1, supplyDrain:1 } },
-  { id:5, name:'无援', note:'在上一档之上，营地与休整的恢复减半（至少留 1 点）。', mods:{ campHalf:1 } },
-  { id:6, name:'终局', note:'在上一档之上，无法撤退、所有伤害 +1；抵达终点需通过 DC 16 检定。', mods:{ noRetreat:1, finalDC:16, dmg:1 } }
+  { id:4, name:'阴影紧随', note:'在上一档之上，所有检定再 +1；进入荒野后每层一次追踪检定（失败 −1）。', mods:{ hunt:1, dc:1 } },
+  { id:5, name:'无援', note:'在上一档之上，荒野路耗 +1（隔层结算）。', mods:{ supplyDrain:1 } },
+  { id:6, name:'终局', note:'在上一档之上，营地与休整的恢复减半（至少留 1 点）、无法撤退、所有伤害 +1；抵达终点需通过 DC 16 检定。', mods:{ campHalf:1, noRetreat:1, finalDC:16, dmg:1 } }
 ];
 
 const TIER_FLAGS = ['hunt','noRetreat','campHalf'];
@@ -769,7 +769,7 @@ const HEROES = [
     start:{ tokens:['courier_letter'] }, rule:'extraReroll', unlock:{ renown:260 } },
 
   { id:'watcher', name:'守夜人', sub:'守过夜的', attrs:{valor:3,cunning:3,lore:2,spirit:4}, hp:11, supply:7, resolve:3,
-    trait:'守过夜', traitDesc:'阴影第一次到 6 时，自动退回 5。只挡一次。',
+    trait:'守过夜', traitDesc:'阴影第一次到 6 时，自动退回 5；代价是 1 点决心与 2 点补给。只挡一次。',
     rule:'shadowGuard', unlock:{ wins:2 } }
 ];
 
@@ -923,6 +923,10 @@ const EVENTS = [
         ok:{ text:'你割断荆棘，羊窜出去跑了。牧人从坡上赶来，硬塞给你一小块奶酪。', fx:{supply:2} },
         no:{ text:'你被荆棘划了一手血，羊倒是跑了。', fx:{hp:-1,supply:1} } },
       { label:'不管，赶路要紧', fx:{}, ok:{ text:'你走了。咩声跟了你一段路，然后听不见了。' } }
+    ,
+    { label:'看羊毛是怎么缠上去的', check:{attr:'lore',dc:10},
+      ok:{ text:'不是它自己缠的。有人把绳子绕过树，再把羊往里推——绳结在外侧，够得着，也解得开。', fx:{renown:2,shadow:1} },
+      no:{ text:'羊毛缠成一团，中间还夹着草屑，看不清。', fx:{} } }
     ] },
 
   { id:'shire_fisher', region:'shire', type:'story', weight:9, title:'河边的渔人',
@@ -950,6 +954,10 @@ const EVENTS = [
         ok:{ text:'他说等他哥，去布理买盐，走了三天。你陪他等了一会儿。他给了你一块糖。', fx:{resolve:1,renown:1} },
         no:{ text:'他摇头不说话。你走过去之后，回头看他已经在桥上坐回原样。', fx:{} } },
       { label:'直接走过去', fx:{}, ok:{ text:'你从他身边侧身过去。他一句话也没说。' } }
+    ,
+    { label:'看桥栏杆上刻的字', check:{attr:'lore',dc:11},
+      ok:{ text:'栏杆上刻着名字，一行一行，最下面那一行是新的。刻的时候手很稳，收笔的时候顿了一下。', fx:{renown:2,resolve:1,flag:{bridge_names:true}} },
+      no:{ text:'石头上都是青苔，你摸了一遍，只摸到几道浅槽，分不清是字还是裂纹。', fx:{resolve:-1} } }
     ] },
 
   { id:'shire_letters', region:'shire', type:'story', weight:8, title:'邮差',
@@ -988,6 +996,10 @@ const EVENTS = [
         ok:{ text:'是一处被烧过的营地，火已经灭了，灰还是热的。地上有马蹄印，很深。', fx:{renown:2,flag:{trail:true}} },
         no:{ text:'你走了很久，烟一直在前面，怎么走也到不了。', fx:{supply:-2,resolve:-1} } },
       { label:'记下方向，绕着走', fx:{renown:1}, ok:{ text:'你把方向记在心里。也许之后用得着。' } }
+    ,
+    { label:'看烟的颜色和走向', check:{attr:'lore',dc:12},
+      ok:{ text:'烟直，说明没有风；颜色黑，说明烧的不是柴，是油，或者浸过油的毡。这种东西烧起来不会自己灭。', fx:{renown:3,shadow:1} },
+      no:{ text:'太远了，只看出是黑的。', fx:{} } }
     ] },
 
   { id:'shire_child', region:'shire', type:'story', weight:8, title:'树下的孩子',
@@ -997,6 +1009,10 @@ const EVENTS = [
         ok:{ text:'走了半个时辰，看见了炊烟。他母亲冲出来抱住他，然后塞给你一整条面包。', fx:{supply:2,renown:2} },
         no:{ text:'走了很久也没看见人家。孩子忽然说他记错了，然后自己跑掉了。', fx:{supply:-2} } },
       { label:'告诉他方向，自己走', fx:{}, ok:{ text:'你指了路。他点点头，但没动。你走出很远，他还在树下。' } }
+    ,
+    { label:'看孩子脚边的土', check:{attr:'lore',dc:10},
+      ok:{ text:'他脚边的土是干的，草也是干的。露水早就退了——他在这儿坐了很久，不是刚躲起来的。', fx:{renown:2,resolve:1} },
+      no:{ text:'草被压平了，看不出多久。', fx:{} } }
     ] },
 
   { id:'shire_well', region:'shire', type:'treasure', weight:8, title:'旧井',
@@ -1015,6 +1031,10 @@ const EVENTS = [
         ok:{ text:'车夫从坡后跑过来，满头是汗。他硬塞给你一兜萝卜和两枚铜板。', fx:{supply:2,renown:1} },
         no:{ text:'车太重，你扶到一半就滑了。车夫赶来时，你正坐在地上喘气。', fx:{hp:-1,supply:1} } },
       { label:'拿走几个萝卜，继续走', fx:{supply:1,shadow:1}, ok:{ text:'你揣了几个。走远之后，听见后面有人在骂。' } }
+    ,
+    { label:'看车为什么会翻', check:{attr:'lore',dc:11},
+      ok:{ text:'车辙在翻之前就歪了。右边那道比左边浅一半——轮子早就松了，不是路的事。', fx:{renown:2,supply:1} },
+      no:{ text:'土被踩乱了，看不出什么。', fx:{} } }
     ] },
 
   { id:'shire_bees', region:'shire', type:'encounter', weight:8, title:'蜂箱',
@@ -1084,6 +1104,10 @@ const EVENTS = [
         ok:{ text:'你读出了最后一行：往东三里，有水。碑脚的石缝里还塞着一小包盐。', fx:{renown:1,supply:1} },
         no:{ text:'你刮了很久，只认出两个残缺的地名。手指被石屑磨破了。', fx:{hp:-1} } },
       { label:'没工夫，继续走', fx:{}, ok:{ text:'你从碑边走过去。它会在那里再站几百年。' } }
+    ,
+    { label:'用炭灰把碑文拓下来', check:{attr:'cunning',dc:12},
+      ok:{ text:'炭灰抹上去，字慢慢浮出来。不是通用文，但你能认出其中两个：往东，别停。', fx:{renown:3,flag:{stone_rubbing:true}} },
+      no:{ text:'苔藓太厚，抹不开，炭灰全粘在手上。', fx:{} } }
     ] },
 
   { id:'any_cache', region:'any', type:'treasure', weight:9, title:'石缝里的东西',
@@ -1102,6 +1126,10 @@ const EVENTS = [
         ok:{ text:'他说他去过很多地方，说的都不像假话。分别时他指了一条近路。', fx:{supply:1,renown:1,resolve:1} },
         no:{ text:'他说话很少，你也就不再问。天黑前他拐进了一条岔路。', fx:{} } },
       { label:'放慢脚步，让他先走', fx:{}, ok:{ text:'你落在后面。他的背影越来越小，最后消失在路的弯处。' } }
+    ,
+    { label:'听他的步子', check:{attr:'lore',dc:11},
+      ok:{ text:'他的步子和你的步长一样。不是碰巧——他在踩你的节奏走。', fx:{renown:2,shadow:1} },
+      no:{ text:'路上碎石多，听不清。', fx:{} } }
     ] },
 
   { id:'any_fire', region:'any', type:'camp', weight:9, title:'借火',
@@ -1140,6 +1168,10 @@ const EVENTS = [
       { label:'不换，只是聊几句', check:{attr:'spirit',dc:11},
         ok:{ text:'他讲了不少路上的事。临走时送了你一根绳子。', fx:{material:1,renown:1} },
         no:{ text:'他见你不买，收起包就走了。', fx:{} } }
+    ,
+    { label:'看布角压着的那枚铜板', check:{attr:'lore',dc:11},
+      ok:{ text:'铜板是新的，边上没有一点磨痕。没人拿新钱压布角——那是摆给人看的，不是用来压东西的。', fx:{renown:2,supply:1} },
+      no:{ text:'铜板很普通，正反面都看清了，还是普通的。', fx:{} } }
     ] },
 
   { id:'any_night', region:'any', type:'camp', weight:8, title:'夜宿',
@@ -1149,6 +1181,10 @@ const EVENTS = [
       { label:'不生火，靠着树坐一夜', check:{attr:'cunning',dc:12},
         ok:{ text:'夜里很冷，但你看见了三次流星。天亮时你意外地清醒。', fx:{resolve:2,supply:-1} },
         no:{ text:'你睡着了，醒来时天已经亮，背包被翻开过，少了点东西。', fx:{supply:-2,hp:-1} } }
+    ,
+    { label:'抬头看星位', check:{attr:'lore',dc:11},
+      ok:{ text:'云散了一块，露出几颗星。你认得其中一颗。它不该在这个位置——要么是你记错了，要么是它动了。', fx:{resolve:1,shadow:1} },
+      no:{ text:'云太厚，什么也看不见。', fx:{} } }
     ] }
 ,
 
@@ -1346,6 +1382,10 @@ const EVENTS = [
         ok:{ text:'你把话说圆了，双方各退一步。欠债的人塞给你一枚铜板，说了声谢。', fx:{renown:2,supply:1} },
         no:{ text:'拿棍子的那个让你少管闲事。你退开了。', fx:{resolve:-1} } },
       { label:'绕开走', fx:{}, ok:{ text:'你从巷口退出去，绕了一条街。吵架声还在后面。' } }
+    ,
+    { label:'看清楚他手里那几个铜板', check:{attr:'lore',dc:11},
+      ok:{ text:'一共四枚，都是新铸的。卖菜的说他少过两次钱，可这四枚一个子儿也没花出去。', fx:{renown:3,resolve:1} },
+      no:{ text:'人围得太多，只看见他的手在抖。', fx:{} } }
     ] },
 
   { id:'bree_map', region:'bree', type:'story', weight:8, title:'卖地图的人',
@@ -1355,6 +1395,10 @@ const EVENTS = [
       { label:'问他从哪来的图', check:{attr:'lore',dc:12},
         ok:{ text:'他说是跟一个游侠学的。你跟他聊了很久，记住了几处标记。', fx:{renown:1,flag:{map:true}} },
         no:{ text:'他收起图，说买就买，不买别问。', fx:{} } }
+    ,
+    { label:'指出图上画错的地方', check:{attr:'lore',dc:13},
+      ok:{ text:'东边那条河，图上画的是直的，实际要绕一个弯。你指出来，他看着你，第一次开口：「你去过。」', fx:{renown:3,flag:{map_fixed:true}} },
+      no:{ text:'你看了一会儿，没看出哪里不对。他把图卷起来，收了。', fx:{} } }
     ] },
 
   { id:'bree_dog', region:'bree', type:'encounter', weight:8, title:'流浪狗',
@@ -1382,6 +1426,10 @@ const EVENTS = [
         ok:{ text:'门锁着，窗户从里面钉死了。你在后院找到一堆烧过的东西，还有半张没烧完的信。', fx:{renown:2,flag:{letter:true}} },
         no:{ text:'你绕着房子走了两圈，什么也没看出来。有个人在对面窗子里看你。', fx:{resolve:-1} } },
       { label:'不关我的事', fx:{}, ok:{ text:'你收回目光，继续走。' } }
+    ,
+    { label:'闻巷子里的味道', check:{attr:'lore',dc:11},
+      ok:{ text:'不是木头烧着的味道。是羊毛，或者头发。这种味道闻过一次就不会认错。', fx:{renown:3,shadow:1} },
+      no:{ text:'风把味道吹散了，只闻到一点焦。', fx:{} } }
     ] },
 
   { id:'bree_well', region:'bree', type:'treasure', weight:8, title:'广场的井',
@@ -1391,6 +1439,10 @@ const EVENTS = [
         ok:{ text:'水很凉。桶底沉着一样东西，捞上来是一枚旧胸针。', fx:{item:'ring',hp:1} },
         no:{ text:'桶放下去，提上来是空的。绳子被割断了。', fx:{resolve:-1} } },
       { label:'不碰，井水有主', fx:{}, ok:{ text:'你在井台边坐了一会儿。有人来打水，冲你点点头。' } }
+    ,
+    { label:'看井壁上的刻痕', check:{attr:'lore',dc:11},
+      ok:{ text:'井壁上一道一道，是打水的人刻的。最上面那几道是新的，刻得很深。刻的不是次数——是日子。', fx:{renown:2,supply:1} },
+      no:{ text:'井太深，光进不去。', fx:{} } }
     ] },
 
   { id:'bree_wall', region:'bree', type:'encounter', weight:8, title:'旧城墙',
@@ -1400,6 +1452,10 @@ const EVENTS = [
         ok:{ text:'是一只乌鸦，站在墙头看你。你走，它就飞到前面去，然后又落下。', fx:{renown:1,flag:{crow:true}} },
         no:{ text:'你抬头的时候，一块碎石掉下来，擦过你的额角。', fx:{hp:-2} } },
       { label:'快点走过去', fx:{}, ok:{ text:'你加快脚步。墙上的动静停了。' } }
+    ,
+    { label:'读露在外面的那半个字', check:{attr:'lore',dc:12},
+      ok:{ text:'露出的边角上写着半个字，是「别」。后面被塞进去了。你不知道是「别去」还是「别停」。', fx:{renown:2,shadow:1} },
+      no:{ text:'纸太脆，一碰就碎，碎屑粘在指头上。', fx:{} } }
     ] },
 
   /* ==================== 荒野 ==================== */
@@ -1525,6 +1581,10 @@ const EVENTS = [
         ok:{ text:'是某种很大的兽，死了很久了。肋骨上有刀痕，是被人分割过的。', fx:{renown:2,material:2} },
         no:{ text:'你走近的时候，草里动了一下。你退开了。', fx:{resolve:-1} } },
       { label:'不靠近，从远处绕过去', fx:{}, ok:{ text:'你沿着坡走。风把草吹开，骨头露出来一片。' } }
+    ,
+    { label:'看骨头都朝着哪边', check:{attr:'cunning',dc:12},
+      ok:{ text:'所有骨头的长端都朝着同一个方向，除了最上面那块。那块横着，指向西——你来的方向。', fx:{renown:3,shadow:1} },
+      no:{ text:'风把最上面那块吹歪了，看不出原来的方向。', fx:{} } }
     ] },
 
   { id:'wild_watch', region:'wild', type:'story', weight:9, title:'守望者',
@@ -1534,6 +1594,10 @@ const EVENTS = [
         ok:{ text:'他是个老妇人，在这里住了四十年。她给你画了一条路，还说了一句你没听懂的话。', fx:{renown:2,supply:1,flag:{warned:true}} },
         no:{ text:'她看了你很久，什么也没说，起身回屋了。', fx:{} } },
       { label:'在远处点点头，走过去', fx:{renown:1}, ok:{ text:'她举了一下手。你走过去之后，回头看，她还在那里坐着。' } }
+    ,
+    { label:'看他的影子', check:{attr:'lore',dc:11},
+      ok:{ text:'太阳在你背后。他的影子该落到身前，但他脚下没有影子。地上只有你的。', fx:{renown:3,shadow:2} },
+      no:{ text:'地上全是碎石，影子断成一截一截，看不出。', fx:{} } }
     ] },
 
   { id:'wild_night', region:'wild', type:'camp', weight:10, title:'荒野夜宿',
@@ -1600,6 +1664,10 @@ const EVENTS = [
         ok:{ text:'是一张纸，上面画着一张简陋的地图，标出了一条安全的路线。', fx:{renown:2,supply:1} },
         no:{ text:'纸已经烂了。你展开的时候，它碎在了手里。', fx:{resolve:-1} } },
       { label:'往石堆上再压一块', fx:{renown:1,resolve:1}, ok:{ text:'你把石头放上去。这是个好习惯。' } }
+    ,
+    { label:'看石堆上那块布的织法', check:{attr:'lore',dc:11},
+      ok:{ text:'深蓝色的布，边上有一道白线。和你包里那块，是同一种织法。', fx:{renown:2,supply:1} },
+      no:{ text:'布被雨洗得发白，看不出花纹。', fx:{} } }
     ] },
 
   { id:'wild_dark', region:'wild', type:'encounter', weight:9, title:'黑暗',
@@ -1620,6 +1688,10 @@ const EVENTS = [
         ok:{ text:'是两户人家。他们收留了你一晚，还给了你一包东西。', fx:{hp:2,supply:2,renown:1} },
         no:{ text:'亮点一直在前面，走了半夜也没到。天亮时你才发现那是两颗星。', fx:{hp:-2,supply:-2} } },
       { label:'在山岗上睡一夜', fx:{hp:2,supply:-1}, ok:{ text:'风很大，但视野好。你睡着的时候，亮点还在。' } }
+    ,
+    { label:'数它闪的节奏', check:{attr:'lore',dc:11},
+      ok:{ text:'一亮一暗，一共七下，停一会儿，再来七下。你在别处数过七：石堆是七块，白的那块朝东。', fx:{renown:3,shadow:1} },
+      no:{ text:'数到一半就乱了，重来三次，三次都不一样。', fx:{} } }
     ] },
 
   { id:'wild_camp2', region:'wild', type:'treasure', weight:9, title:'废弃营地',
@@ -1660,6 +1732,10 @@ const EVENTS = [
         ok:{ text:'你把布条折好，放进衣襟。你不知道这个名字是谁，但你觉得应该有人记得。', fx:{renown:2,resolve:1} },
         no:{ text:'布条一碰就碎了。', fx:{} } },
       { label:'添一块石头', fx:{renown:1}, ok:{ text:'你从路边搬来一块石头，放在石堆顶上。' } }
+    ,
+    { label:'看那个结是怎么打的', check:{attr:'lore',dc:12},
+      ok:{ text:'这种扣法不是这一带的。你在夏尔见过一次——绑篱笆的人这么打结。有人把家乡的手法一路带到了这里。', fx:{renown:3,resolve:1} },
+      no:{ text:'布条太旧，结已经硬了，一碰就掉渣。', fx:{} } }
     ] },
 
   { id:'wild_end', region:'wild', type:'story', weight:8, title:'最后一段',
@@ -1669,6 +1745,10 @@ const EVENTS = [
         ok:{ text:'你看见了自己走过的路，一路的雾和石头。你把这一切都记住了。', fx:{renown:3,resolve:2} },
         no:{ text:'回头的时候，你什么也看不清。你转回来，继续走。', fx:{resolve:1} } },
       { label:'不停，一直走到终点', fx:{supply:-1}, ok:{ text:'你没有停。' } }
+    ,
+    { label:'看地平线为什么这么直', check:{attr:'lore',dc:12},
+      ok:{ text:'不是山，也不是雾。是墙。很远，很高，颜色和天一样。它一直在那儿，只是没有人从这边看过它。', fx:{renown:4,shadow:1} },
+      no:{ text:'你看了很久，只看见光。', fx:{} } }
     ] },
 
   /* ==================== 事件链 ==================== */
@@ -1685,9 +1765,19 @@ const EVENTS = [
     text:'你回头的时候，磨坊烧起来了。火不大，只在二楼，窗子被照得很亮。\n\n没有人跑出来。',
     options:[
       { label:'回去救火', check:{attr:'valor',dc:14},
-        ok:{ text:'火被你和几个赶来的村民扑灭了。二楼烧空了一半，但在灰里你找到一块烧不化的东西。', fx:{renown:3,material:3} },
+        ok:{ text:'火被你和几个赶来的村民扑灭了。二楼烧空了一半，但在灰里你找到一块烧不化的东西。', fx:{renown:3,material:3}, chain:'shire_mill_ash' },
         no:{ text:'火太大了。你只能站在外面看。屋顶塌下来的时候，火星飞得很高。', fx:{hp:-2,resolve:-2} } },
       { label:'站着看完', fx:{resolve:-1}, ok:{ text:'你看着它烧完。天亮的时候，磨坊只剩四面墙。' } }
+    ] },
+
+  { id:'shire_mill_ash', region:'shire', type:'story', weight:0, title:'烧不化的东西',
+    text:'那块东西在你包里放了两天，还是凉的。\n\n它不是铁，也不是石头。表面被火燎黑了一层，擦掉那层黑，底下是白的，白得很干。\n\n夜里你把它拿出来看，它不反光。',
+    options:[
+      { label:'找个识字的人看看上面有没有刻痕', check:{attr:'lore',dc:13},
+        ok:{ text:'磨坊的老婆婆认得。她说这不是刻的，是长出来的——像骨头里的纹。她让你把它带走，别留在夏尔。', fx:{renown:4,shadow:1,flag:{ash_known:true}} },
+        no:{ text:'没人认得。有个货郎看了一眼就移开视线，说他没见过，让你收好。', fx:{resolve:-1} } },
+      { label:'埋回磨坊的地基下面', fx:{resolve:1},
+        ok:{ text:'你把它放进墙根的石缝里，用土盖住，踩实。走的时候手是干净的。', fx:{} } }
     ] },
 
   { id:'bree_strider', region:'bree', type:'story', weight:0, title:'他说的那条路',
@@ -2485,6 +2575,148 @@ const EVENTS = [
     options:[
       { label:'收下，道谢', fx:{supply:1}, ok:{ text:'你嚼了一片，很甜，甜得有点意外。' } },
       { label:'说不用了', fx:{resolve:1}, ok:{ text:'她收回手，自己嚼了一片，说那就算了。' } }
+    ] },
+
+  /* ===== v0.14：世界记得你 —— 前面写下的 flag，这里必须有人接 ===== */
+
+  { id:'shire_mill_return', region:'shire', type:'story', weight:14, require:{flag:'mill'},
+    title:'磨坊的门开着',
+    text:'磨坊的门开着。上次你从这儿绕过去的时候，只有二楼亮着灯。今天一楼也亮了，门口的地扫过，扫帚靠在门框上，还带着湿气。\n\n磨盘在转。很慢，但有声音。',
+    options:[
+      { label:'进去，问那天晚上是谁在楼上', check:{attr:'spirit',dc:12},
+        ok:{ text:'一个老婆婆坐在磨盘边择豆子。她说她在这儿住了四十年，灯一直点着。「你是那个从门口过去的。」她没抬头，「你走的时候灯灭了一下，我看见了。」', fx:{resolve:1,renown:2,flag:{mill_met:true}} },
+        no:{ text:'磨盘自己在转。你喊了一声，它停了一下，又转起来。屋里没有别人。', fx:{resolve:-1} } },
+      { label:'抓一把磨盘上的东西看清楚', check:{attr:'lore',dc:12},
+        ok:{ text:'是新麦。麦粒还带着一点青，掐开有浆。这一季的麦子还要一个月才割。', fx:{renown:2,supply:1} },
+        no:{ text:'你抓起来的是糠。糠里混着几粒黑的东西，还没看清就被风吹走了。', fx:{shadow:1} } },
+      { label:'不进去，从磨坊后面绕', fx:{supply:-1},
+        ok:{ text:'你绕过去。回头看时，一楼二楼的灯一起灭了，磨盘还在响。' } }
+    ] },
+
+  { id:'shire_ditch_after', region:'shire', type:'story', weight:14, require:{flag:'sluice'},
+    title:'渠里的水停了',
+    text:'灌渠的水声停了。\n\n那截装反的木闸被拆下来，靠在渠边，闸板上多了几道新刻的痕。渠底只剩一层湿泥，泥上有一行脚印，往回走的，步子比来的时候慢。',
+    options:[
+      { label:'沿脚印往回找', check:{attr:'cunning',dc:12},
+        ok:{ text:'脚印通到渠边一间小屋。门开着，灶是温的，桌上摆着两只碗，一只动过，一只没有。', fx:{supply:2,renown:1} },
+        no:{ text:'脚印走到渠边就没了，像下了水。你沿渠找了半里，只找到一只鞋。', fx:{resolve:-1} } },
+      { label:'看闸板上新刻的痕', check:{attr:'lore',dc:11},
+        ok:{ text:'刻的是三个字：关三天。刻痕很浅，是赶时间刻的。落款的地方还有一个记号——你在别处见过一样的。', fx:{renown:3,shadow:1,flag:{mark:true}} },
+        no:{ text:'木头泡涨了，刻痕鼓起，像字也像划痕。', fx:{} } },
+      { label:'不看了，接着走', fx:{},
+        ok:{ text:'你从渠边走开。走出很远，身后又有了水声。——可渠是干的。' } }
+    ] },
+
+  { id:'bree_bell_after', region:'bree', type:'story', weight:14, require:{flag:'bell'},
+    title:'钟自己响了',
+    text:'钟响了。\n\n不是一下，是很多下，密得连成一片，然后一起停住。\n\n你抬头看钟楼。钟口还是空的，钟舌还是没有。',
+    options:[
+      { label:'上钟楼看', check:{attr:'cunning',dc:13},
+        ok:{ text:'钟在晃，幅度很小。绳子上那个新结不见了。楼底那块压平的圆上，多了一圈脚印，都朝着楼里。', fx:{renown:2,shadow:1} },
+        no:{ text:'楼梯还是朽的。你上到一半，上面传来一声轻响，像有人把什么东西放下了。你没再往上。', fx:{resolve:-1} } },
+      { label:'问街上的人听见没有', check:{attr:'spirit',dc:11},
+        ok:{ text:'卖菜的女人说，这钟早就不响了，她在这儿住了二十年。说完她朝钟楼看了一眼，很快低下头去理菜。', fx:{resolve:1,renown:1} },
+        no:{ text:'街上没有人。刚才还有人的摊子都收着，布盖得整整齐齐。', fx:{} } },
+      { label:'当没听见，继续走', fx:{},
+        ok:{ text:'你走出村口。钟又响了一下，只有一下。' } }
+    ] },
+
+  { id:'bree_shoe_after', region:'bree', type:'story', weight:14, require:{flag:'hotshoe'},
+    title:'炉子生起来了',
+    text:'铁匠棚的炉子生起来了，烟从棚顶直直地冒出去。\n\n门口挂着一块新打的马蹄铁，锤印还是亮的。棚里有动静，一下，一下。',
+    options:[
+      { label:'进去', check:{attr:'spirit',dc:12},
+        ok:{ text:'一个年轻人背对着门在打铁。他说这一带只有他一个铁匠，师父去年冬天走了。「砧上那块？」他没回头，「他打的。打完就放那儿，一直没取。」', fx:{renown:2,resolve:1} },
+        no:{ text:'棚里没有人。炉子烧得很旺，风箱自己在动。你退出来的时候，门口那块蹄铁不见了。', fx:{shadow:1} } },
+      { label:'看那块新蹄铁上的记号', check:{attr:'lore',dc:11},
+        ok:{ text:'蹄铁边缘有一个很小的记号，和你在墙缝那张纸上看到的路口画法一模一样。', fx:{renown:2,flag:{sign:true}} },
+        no:{ text:'锤印太密，看不出别的。', fx:{} } },
+      { label:'从大道外侧绕过去', fx:{supply:-1},
+        ok:{ text:'你绕过去。走出很远，打铁的声音还在。' } }
+    ] },
+
+  { id:'bree_ledger_after', region:'bree', type:'story', weight:14, require:{flag:'ledger'},
+    title:'账本上有你的名字',
+    text:'客栈换了伙计。\n\n新伙计把账本摊在柜台上，问你住不住。你说不住。他点点头，笔尖停了一下，还是写下去了。\n\n你看见最后那一行的末尾，是你的名字。',
+    options:[
+      { label:'问他写的是什么', check:{attr:'spirit',dc:12},
+        ok:{ text:'他把账本转过来。那一行写着你的名字，后面是「预付，一晚」，落款是今天。「有人替你付了。」他说，「没留名字。」', fx:{resolve:1,renown:2,flag:{ledger_paid:true}} },
+        no:{ text:'他合上账本，说记错了。他的手在抖，笔尖在封皮上点出一个小墨点。', fx:{} } },
+      { label:'抢在合上之前看清前面几行', check:{attr:'cunning',dc:13},
+        ok:{ text:'被划掉的名字一共七个。每一个后面都写着同一个日期：今天。', fx:{shadow:2,renown:3} },
+        no:{ text:'他把账本抱进怀里，退到柜台里面。你只看见一道划痕，很新。', fx:{shadow:1} } },
+      { label:'不住了，转身出门', fx:{},
+        ok:{ text:'你走出门。回头看时，伙计还在写，笔没有停。' } }
+    ] },
+
+  { id:'bree_wall_after', region:'bree', type:'story', weight:14, require:{flag:'crow'},
+    title:'墙上的三只',
+    text:'还是那段城墙。今天墙上停着三只乌鸦，一字排开，都朝着东。\n\n你走近的时候，它们没有飞。',
+    options:[
+      { label:'看清它们在看什么', check:{attr:'cunning',dc:12},
+        ok:{ text:'它们看的不是你，是你身后。你回头，路上空着。再转回来，三只都还在看，头跟着你转了一点。', fx:{renown:2,shadow:1} },
+        no:{ text:'它们同时叫了一声，飞走了。墙头留下三小片羽毛，都朝一个方向。', fx:{resolve:-1} } },
+      { label:'数一数这段墙缝里塞了几处东西', check:{attr:'lore',dc:12},
+        ok:{ text:'这一段墙缝里塞了十一处：纸、布，还有一截皮绳。塞的位置都一样高——抬手够得着的地方。', fx:{renown:3,flag:{wall_count:true}} },
+        no:{ text:'砖缝里都是灰，看不出哪些塞过东西。', fx:{} } },
+      { label:'不看，走过去', fx:{},
+        ok:{ text:'你走过去。走到一半，三只一起飞了，没有叫。' } }
+    ] },
+
+  { id:'wild_cairn_after', region:'wild', type:'story', weight:14, require:{flag:'cairn'},
+    title:'第四个石堆',
+    text:'第四个石堆在路的另一侧。\n\n前三个都在同一侧，这一个不在。而且它不是七块——你数了两遍，是八块。\n\n最上面那块也是白的，但白得不一样，像刚放上去的。',
+    options:[
+      { label:'蹲下来数清楚', check:{attr:'lore',dc:11},
+        ok:{ text:'底下一圈七块，第八块压在顶上。它不是石头——是一小块骨，被磨得很光，看不出是什么的。', fx:{renown:3,shadow:1,flag:{cairn_eight:true}} },
+        no:{ text:'风把最上面那块吹下来了。它滚进碎石里，你找了很久也没找到。', fx:{resolve:-1,shadow:1} } },
+      { label:'照前三个的样子，把它摆回同一侧', check:{attr:'valor',dc:12},
+        ok:{ text:'你把八块石头一块一块搬过路，重新堆好，白的那块朝东。堆完手在抖，天已经暗了。', fx:{renown:4,hp:-1,flag:{cairn_moved:true}} },
+        no:{ text:'搬到第五块，你发现石头比看起来重得多。放下的时候砸到了脚。', fx:{hp:-2} } },
+      { label:'当成没看见，继续走', fx:{},
+        ok:{ text:'你走过去。走出很远，回头看了一眼——石堆还在那儿，白的那块很显眼。' } }
+    ] },
+
+  { id:'wild_hoof_after', region:'wild', type:'encounter', weight:14, require:{flag:'hoof'},
+    title:'蹄印到了这里',
+    text:'蹄印又出现了。\n\n这次是干的，印子很深，边缘塌了，说明有些时候了。它从西边来，在这里拐了个弯，朝你要去的方向去。\n\n拐弯的地方，草被踩倒了一小片，压得很实。',
+    options:[
+      { label:'在压实的草里找别的东西', check:{attr:'cunning',dc:13},
+        ok:{ text:'草里有一撮毛，很硬，不是马毛。还有一小块干泥，从蹄缝里掉出来的，泥里有铁屑。', fx:{renown:3,flag:{hoof_trace:true}} },
+        no:{ text:'你翻了很久，只翻出几只蚂蚁。', fx:{} } },
+      { label:'顺着蹄印走一段', check:{attr:'valor',dc:12},
+        ok:{ text:'走了半个时辰，蹄印在一道干沟前停住。沟底有东西躺过，压出一个很长的形。', fx:{renown:2,supply:-1,shadow:1} },
+        no:{ text:'走了半里，蹄印散了。你回头时，来的路上多了一串新的。', fx:{hp:-2,shadow:1} } },
+      { label:'绕开这一段', fx:{supply:-1},
+        ok:{ text:'你绕了很远。绕过去之后，路上还是有蹄印。' } }
+    ] },
+
+  { id:'shire_hedge_after', region:'shire', type:'story', weight:14, require:{flag:'hedge'},
+    title:'篱笆上多了个洞',
+    text:'那截补过的篱笆上多了一个洞。\n\n不是拆开的，是从里面顶出来的——枝条朝外翻，断口是新的。洞不大，一个人侧着身能过。\n\n田里没有人。',
+    options:[
+      { label:'钻进去看看', check:{attr:'cunning',dc:12},
+        ok:{ text:'田里没有踩过的痕迹。只有篱笆根下压着一圈草，圆的，压得很实，像有什么在那儿躺过一夜。', fx:{renown:2,flag:{hedge_inside:true}} },
+        no:{ text:'你卡在洞口，退出来的时候撕破了袖子。田里什么也没有。', fx:{hp:-1} } },
+      { label:'看断口是新的还是旧的', check:{attr:'lore',dc:11},
+        ok:{ text:'断口是新的，但枝条的断面已经干了。有人先把它折断，晾了几天，再插回去。', fx:{renown:2,shadow:1} },
+        no:{ text:'断口参差，看不出新旧。', fx:{} } },
+      { label:'不钻，沿田埂走', fx:{},
+        ok:{ text:'你沿着田埂走。走了几步，听见篱笆那边有声音，很轻，像有人翻了个身。' } }
+    ] },
+
+  { id:'wild_follower_after', region:'wild', type:'encounter', weight:15, require:{flag:'followed'},
+    title:'它一直在后面',
+    text:'你停下来的时候，后面的脚步声也停了。\n\n不是躲，是停。像在等你先走。\n\n雾很薄，回头能看见路，路上什么也没有。',
+    options:[
+      { label:'转过身，站着不动', check:{attr:'valor',dc:14},
+        ok:{ text:'你站了很久。雾里有个形，比人高，不动。你先眨眼，它就没了。地上多了一串往东的脚印，很新。', fx:{renown:4,shadow:1,flag:{faced_it:true}} },
+        no:{ text:'你转身，它不在那儿。它在背后。那一下很冷，不疼，但你觉得有什么被拿走了。', fx:{hp:-3,shadow:2} } },
+      { label:'念出它的名字——你不知道自己怎么知道的', check:{attr:'lore',dc:15},
+        ok:{ text:'那个音节出来的时候，雾退了一步。不是散，是退。脚印也没了，像从没来过。', fx:{renown:5,resolve:-1,flag:{named_it:true}} },
+        no:{ text:'你念错了。雾里有什么东西笑了一下，很短，像喘气。', fx:{shadow:2,resolve:-1} } },
+      { label:'不回头，加快脚步', fx:{supply:-2},
+        ok:{ text:'你走到天快黑。后面的脚步声一直没断，也没近。' } }
     ] }
 ];
 
@@ -2792,6 +3024,108 @@ function regionVariant(ev, region){
 
 const TEXTS = {};
 
+/* ===== v0.14：接 flag 的后续事件正文 ===== */
+TEXTS.shire_mill_return = {
+  title: '磨坊的门开着',
+  text: '磨坊的门开着。\n\n上次你来的时候，只有二楼亮着灯，窗上那个影子站着一动不动。今天一楼也亮了，门口的泥地扫过，扫帚靠在门框上，帚尖还是湿的。\n\n磨盘在转。很慢，一圈要很久，但确实在转。',
+  opts: [
+    { ok: '一个老婆婆坐在磨盘边择豆子。她说她在这座磨坊里住了四十年，灯一直点着，从没断过。\n\n「你是那个从门口过去的。」她没抬头，「你走的时候，灯灭了一下。我看见了。」\n\n她把择好的豆子往你这边推了推。', no: '磨盘自己在转。你喊了一声，它停了一下，又转起来，像被人从后面推了一把。\n\n屋里没有别人。豆子撒在地上，还是新的。' },
+    { ok: '是新麦。麦粒还带着一点青，掐开有白浆，沾在指头上。\n\n这一季的麦子还要一个月才割。磨盘上这些，是从哪儿来的？', no: '你抓起来的是糠。糠里混着几粒黑的东西，比麦粒圆，也比麦粒沉。\n\n你还没看清，风就从门口灌进来，把它们吹走了。' },
+    { ok: '你从磨坊后面绕过去。\n\n回头的时候，一楼二楼的灯一起灭了。磨盘还在响，响得比刚才快。' }
+  ]
+};
+
+TEXTS.shire_ditch_after = {
+  title: '渠里的水停了',
+  text: '灌渠的水声停了。\n\n那截装反的木闸被整个拆下来，靠在渠边，闸板上多了几道新刻的痕，刻得很浅，像是用什么尖东西匆匆划的。\n\n渠底只剩一层湿泥。泥上有一行脚印，往回走的，步子比来的时候慢。',
+  opts: [
+    { ok: '脚印通到渠边一间小屋。门开着，灶是温的，锅里还有半锅东西。\n\n桌上摆着两只碗。一只动过，一只没有。', no: '脚印走到渠边就没了，像下了水。\n\n你沿渠找了半里，草里只有一只鞋，鞋底是新的。' },
+    { ok: '刻的是三个字：关三天。\n\n刻痕很浅，是赶时间刻的。落款的地方还有一个记号，很小——你在别处见过一样的。', no: '木头泡涨了，刻痕鼓起来，摸上去像字，也像划痕。\n\n你用指甲抠了一下，掉下来的是湿木屑。' },
+    { ok: '你从渠边走开。\n\n走出很远，身后又有了水声。\n\n可渠是干的。' }
+  ]
+};
+
+TEXTS.bree_bell_after = {
+  title: '钟自己响了',
+  text: '钟响了。\n\n不是一下，是很多下，密得连成一片，然后一起停住。停得很齐，像有人把手按在了钟上。\n\n你抬头看钟楼。钟口还是空的，钟舌还是没有。',
+  opts: [
+    { ok: '钟在晃，幅度很小，要盯着看才看得出来。\n\n绳子上那个新结不见了。楼底那块压平的圆上，多了一圈脚印，都朝着楼里，没有出来的。', no: '楼梯还是朽的。你上到一半，上面传来一声轻响，像有人把什么东西放下了。\n\n你在那儿站了一会儿，没有再往上。' },
+    { ok: '卖菜的女人说，这钟早就不响了，她在这儿住了二十年。\n\n说完她朝钟楼看了一眼，很快低下头去理菜，理得很用力。', no: '街上没有人。\n\n刚才还有人的摊子都收着，布盖得整整齐齐，连秤都收进去了。' },
+    { ok: '你走出村口。\n\n钟又响了一下，只有一下。' }
+  ]
+};
+
+TEXTS.bree_shoe_after = {
+  title: '炉子生起来了',
+  text: '铁匠棚的炉子生起来了，烟从棚顶直直地冒出去，没有一点风。\n\n门口挂着一块新打的马蹄铁，锤印还是亮的。棚里有动静，一下，一下，很稳。\n\n砧上那块热的，不见了。',
+  opts: [
+    { ok: '一个年轻人背对着门在打铁。他说这一带只有他一个铁匠，师父去年冬天走了。\n\n「砧上那块？」他没回头，「他打的。打完就放那儿，一直没取。」\n\n锤子落下去，火星溅到地上，很快就灭了。', no: '棚里没有人。\n\n炉子烧得很旺，风箱自己在动，一推一拉，很有节奏。\n\n你退出来的时候，门口那块蹄铁不见了。' },
+    { ok: '蹄铁边缘有一个很小的记号，像个歪着的十字。\n\n和你在墙缝那张纸上看到的路口画法，一模一样。', no: '锤印太密，一层压一层，看不出别的。\n\n你把它翻过来，背面是平的，什么也没有。' },
+    { ok: '你从大道外侧绕过去。\n\n走出很远，打铁的声音还在，一下，一下，没有停。' }
+  ]
+};
+
+TEXTS.bree_ledger_after = {
+  title: '账本上有你的名字',
+  text: '客栈换了伙计。\n\n新伙计把账本摊在柜台上，问你住不住。你说不住。他点点头，笔尖在纸上停了一下，还是写下去了。\n\n你看见最后那一行的末尾，是你的名字。',
+  opts: [
+    { ok: '他把账本转过来。\n\n那一行写着你的名字，后面是「预付，一晚」，落款是今天。\n\n「有人替你付了。」他说，「没留名字。」', no: '他合上账本，说记错了。\n\n他的手在抖。笔尖在封皮上点出一个小墨点，越洇越大。' },
+    { ok: '被划掉的名字一共七个。\n\n每一个后面都写着同一个日期：今天。\n\n划痕很新，纸都破了。', no: '他把账本抱进怀里，退到柜台里面。\n\n你只看见一道划痕，很新，从纸的这头划到那头。' },
+    { ok: '你走出门。\n\n回头看时，伙计还在写，笔没有停。' }
+  ]
+};
+
+TEXTS.bree_wall_after = {
+  title: '墙上的三只',
+  text: '还是那段城墙。\n\n今天墙上停着三只乌鸦，一字排开，都朝着东。它们不叫，也不动，像三块石头。\n\n你走近的时候，它们没有飞。',
+  opts: [
+    { ok: '它们看的不是你，是你身后。\n\n你回头，路上空着，一个人也没有。\n\n再转回来，三只都还在看，头跟着你转了一点。', no: '它们同时叫了一声，飞走了。\n\n墙头留下三小片羽毛，都朝一个方向摆着。' },
+    { ok: '这一段墙缝里塞了十一处：纸、布，还有一截皮绳。\n\n塞的位置都一样高——抬手够得着的地方。再高的地方一处也没有。', no: '砖缝里都是灰，看不出哪些塞过东西。\n\n你伸手摸了一遍，指尖全是黑的。' },
+    { ok: '你走过去。\n\n走到一半，三只一起飞了，没有叫。' }
+  ]
+};
+
+TEXTS.wild_cairn_after = {
+  title: '第四个石堆',
+  text: '第四个石堆在路的另一侧。\n\n前三个都在同一侧，这一个不在。而且它不是七块——你数了两遍，是八块。\n\n最上面那块也是白的，但白得不一样，像刚放上去的，还没被风吹旧。',
+  opts: [
+    { ok: '底下一圈七块，第八块压在顶上。\n\n它不是石头。是一小块骨，被磨得很光，摸上去是温的。看不出是什么的。', no: '风把最上面那块吹下来了。它滚进碎石里，你找了很久也没找到。\n\n回头再看，石堆还是八块。' },
+    { ok: '你把八块石头一块一块搬过路，重新堆好，白的那块朝东。\n\n堆完手在抖。天已经暗了。', no: '搬到第五块，你发现石头比看起来重得多。\n\n放下的时候没托住，砸在脚背上。' },
+    { ok: '你走过去。\n\n走出很远，回头看了一眼——石堆还在那儿，白的那块很显眼。' }
+  ]
+};
+
+TEXTS.wild_hoof_after = {
+  title: '蹄印到了这里',
+  text: '蹄印又出现了。\n\n这次是干的，印子很深，边缘塌了，说明有些时候了。它从西边来，在这里拐了个弯，朝你要去的方向去。\n\n拐弯的地方，草被踩倒了一小片，压得很实。',
+  opts: [
+    { ok: '草里有一撮毛，很硬，不是马毛。\n\n还有一小块干泥，是从蹄缝里掉出来的，掰开，里面有铁屑。', no: '你翻了很久，只翻出几只蚂蚁。\n\n它们绕着你的手指转了一圈，又钻回土里。' },
+    { ok: '走了半个时辰，蹄印在一道干沟前停住。\n\n沟底有东西躺过，压出一个很长的形。那个形比马长，也比马窄。', no: '走了半里，蹄印散了。\n\n你回头时，来的路上多了一串新的，间距和你刚才走过的一模一样。' },
+    { ok: '你绕了很远。\n\n绕过去之后，路上还是有蹄印。' }
+  ]
+};
+
+TEXTS.shire_hedge_after = {
+  title: '篱笆上多了个洞',
+  text: '那截补过的篱笆上多了一个洞。\n\n不是拆开的，是从里面顶出来的——枝条朝外翻，断口是新的，还带着白茬。\n\n洞不大，一个人侧着身能过。田里没有人。',
+  opts: [
+    { ok: '田里没有踩过的痕迹。\n\n只有篱笆根下压着一圈草，圆的，压得很实，像有什么在那儿躺过一夜。\n\n圈里一根草都没断。', no: '你卡在洞口，退出来的时候撕破了袖子。\n\n田里什么也没有。回头看，那个洞好像小了一点。' },
+    { ok: '断口是新的，但枝条的断面已经干了。\n\n有人先把它折断，晾了几天，再插回去。\n\n插得很仔细，朝向都是对的。', no: '断口参差，看不出新旧。\n\n你把手指伸进去，摸到一根细绳，一拉，整段篱笆松了一下。' },
+    { ok: '你沿着田埂走。\n\n走了几步，听见篱笆那边有声音，很轻，像有人翻了个身。' }
+  ]
+};
+
+TEXTS.wild_follower_after = {
+  title: '它一直在后面',
+  text: '你停下来的时候，后面的脚步声也停了。\n\n不是躲，是停。像在等你先走。\n\n雾很薄，回头能看见路，路上什么也没有。',
+  opts: [
+    { ok: '你站了很久。\n\n雾里有个形，比人高，不动。你盯着它，它没有变淡，也没有靠近。\n\n你先眨眼，它就没了。地上多了一串往东的脚印，很新。', no: '你转过身，它不在那儿。\n\n它在背后。\n\n那一下很冷，不疼，但你觉得有什么被拿走了，而且拿走了就不会还回来。' },
+    { ok: '那个音节出来的时候，雾退了一步。\n\n不是散，是退——整片雾往后退开，露出底下的碎石。\n\n脚印也没了，像从没来过。你站在原地，嗓子很干。', no: '你念错了。\n\n雾里有什么东西笑了一下，很短，像喘气。\n\n然后它往前挪了一点。' },
+    { ok: '你走到天快黑。\n\n后面的脚步声一直没断，也没近。' }
+  ]
+};
+
+
 TEXTS.shire_tracks = {
   title: '篱笆外的脚印',
   text: '麦子刚割过，地里还留着齐膝的茬。篱笆是去年冬天新扎的，木料还没变色，钉子也没锈。\n\n就在篱笆外侧的泥地上，有一串脚印。比人的大一圈，比马的浅得多。它从麦田西头过来，在篱笆前停住了——停的地方，泥被踩出一个浅坑，两只脚并得很齐，站了很久。\n\n然后它折回去了。没有进门。',
@@ -2846,6 +3180,8 @@ TEXTS.shire_sheep = {
   opts: [
     { ok: '你先解开缠住的那一撮毛，再推它的后腿。它一出来就跑了，跑得比你想的快。跑出十几步，它停下来回头看你。你走近，它又跑。这样来回跟了半里地，最后它把你带到一道沟边——沟里有只小羊，卡在石头缝里，还活着。', no: '你使劲拽，羊毛连着皮撕下来一块。它叫了一声，突然发力，把你撞倒，跑了。你手掌擦破了，坐在地上看着它跑远，一瘸一拐，但跑得很坚决。' },
     { ok: '你从旁边过去。走出去一段，还能听见它喘气的声音。声音一直没变，你也就一直知道它还在那儿。' }
+  ,
+    { ok: '不是它自己缠的。有人把绳子绕过树，再把羊往里推——绳结在外侧，够得着，也解得开。', no: '羊毛缠成一团，中间还夹着草屑，看不清。' }
   ]
 };
 
@@ -2873,6 +3209,8 @@ TEXTS.shire_bridge = {
   opts: [
     { ok: '他转过头，眼睛很清亮。「等我儿子，」他说，「他去东边了。」\n\n他指了指东边，然后又指了一下桥下的水。「去年这时候。」\n\n他没有再说话。你走过去的时候，他往旁边让了让，让得很自然，像让过很多次了。', no: '他没有回答，也没有回头。你站了一会儿，觉得不该再问。\n\n走的时候，你听见他清了清嗓子，像是要说什么，最后什么也没说。' },
     { ok: '你从他身边过去。桥很窄，你侧了一下身。他没有让，也没有碰你。\n\n下桥之后，你回头看了一眼。他还在那儿，姿势一点没变。' }
+  ,
+    { ok: '栏杆上刻着名字，一行一行，最下面那一行是新的。刻的时候手很稳，收笔的时候顿了一下。', no: '石头上都是青苔，你摸了一遍，只摸到几道浅槽，分不清是字还是裂纹。' }
   ]
 };
 
@@ -2909,6 +3247,8 @@ TEXTS.shire_smoke = {
   opts: [
     { ok: '走了半个多时辰。火已经灭了，灰还是热的。烧的是几辆大车，车轮只剩铁箍，木头全成了炭。\n\n地上有拖动的痕迹，往北去了，很深，不是人走出来的。你没有再往前跟。', no: '你走错了方向，绕进一片沼泽。等绕出来，天已经黑了，烟也没了。你不知道自己走到了哪儿，只知道往东。' },
     { ok: '你在心里记了一个位置，往东走的时候一直把那股烟摆在右边。\n\n天黑之后烟看不见了，但你还记得它在哪个方向。' }
+  ,
+    { ok: '烟直，说明没有风；颜色黑，说明烧的不是柴，是油，或者浸过油的毡。这种东西烧起来不会自己灭。', no: '太远了，只看出是黑的。' }
   ]
 };
 
@@ -2918,6 +3258,8 @@ TEXTS.shire_child = {
   opts: [
     { ok: '你蹲下来，没有靠近。过了很久，他开口了，第一句是「他们让我在这儿等」。\n\n你问等谁，他摇头。你带他往西走了两里，遇到正在找他的家里人。他母亲没有说谢，只是把孩子抱得很紧，紧到他开始挣扎。', no: '你一伸手，他就跑了。跑得很快，往田里跑，钻进麦茬就没影了。\n\n你追了两步，脚下一滑，摔进了沟里。爬起来的时候，田里一片安静。' },
     { ok: '你指了指西边，说那边有人家，走过去半个时辰就到。他点点头。\n\n你走了，没回头。走了很远，还是想着他点头的样子。' }
+  ,
+    { ok: '他脚边的土是干的，草也是干的。露水早就退了——他在这儿坐了很久，不是刚躲起来的。', no: '草被压平了，看不出多久。' }
   ]
 };
 
@@ -2936,6 +3278,8 @@ TEXTS.shire_cart = {
   opts: [
     { ok: '车比看上去沉，你们两个人一起使劲才扶正。他从筐里挑了几个最好的塞给你，说「拿着，不算白帮忙」。\n\n你收下了。他把剩下的萝卜码好，重新推起车，往西去了。', no: '车扶到一半，轮子脱落了。你手上划了一道口子。他连声道歉，最后还是塞给你几个萝卜。\n\n你走了之后，听见他在后面用石头敲轮子，敲了很久。' },
     { ok: '你捡了两个，他没有抬头。\n\n走出去一段，听见他在后面小声说了句什么。你没听清，也没有回去问。' }
+  ,
+    { ok: '车辙在翻之前就歪了。右边那道比左边浅一半——轮子早就松了，不是路的事。', no: '土被踩乱了，看不出什么。' }
   ]
 };
 
@@ -3037,6 +3381,8 @@ TEXTS.any_stone = {
   opts: [
     { ok: '你把苔藓刮干净，指甲缝里全是绿的。石头上有字，刻得很浅，很多已经磨平了。你认出了三个——是名字，三个名字，一排。\n\n最后那个名字下面没有刻日期。', no: '苔藓底下的石头是空的，中间有一道缝。你伸手进去摸，摸到一些凉的东西。抽出来的时候手被划破了。' },
     { ok: '你没停。石头在身后过去了。走了很远，你忽然想起那块石头的形状——它不像界碑，倒像一块压着什么东西的石板。' }
+  ,
+    { ok: '炭灰抹上去，字慢慢浮出来。不是通用文，但你能认出其中两个：往东，别停。', no: '苔藓太厚，抹不开，炭灰全粘在手上。' }
   ]
 };
 
@@ -3055,6 +3401,8 @@ TEXTS.any_stranger = {
   opts: [
     { ok: '你加快脚步跟上去。他侧过头，没有停。\n\n你们走了一段，说了几句天气、路况、哪里的水能喝。他说他往东，你说你也往东。之后就没再说什么，但两个人走比一个人快。\n\n岔路口他往南去了，没有告别，只是抬了一下手。', no: '你追上去，他反而走快了。你跟了一段，觉得没意思，慢了下来。\n\n铁杯子的声音远了。' },
     { ok: '你放慢脚步，让他先走。铁杯子的声音一直响到你听不见为止。\n\n路上安静下来之后，你才发现自己一直在听那个声音。' }
+  ,
+    { ok: '他的步子和你的步长一样。不是碰巧——他在踩你的节奏走。', no: '路上碎石多，听不清。' }
   ]
 };
 
@@ -3091,6 +3439,8 @@ TEXTS.any_trade = {
   opts: [
     { ok: '你把补给推过去，指了指那两块饼。他看了一眼，收下，把饼递给你。\n\n饼很硬，是一种能放很久的面饼。他指了指饼，又指了指东边，意思是——路上吃。' },
     { ok: '你在他对面坐下，不换东西，只是说话。\n\n他说他从南边来，南边今年不好。他说了几句就不说了。你起身的时候，他把一个铜板推给你，你推回去，他又推过来。最后你收了。', no: '他没有搭话，眼睛一直看着路。\n\n你坐了一会儿，觉得打扰了，起身走了。' }
+  ,
+    { ok: '铜板是新的，边上没有一点磨痕。没人拿新钱压布角——那是摆给人看的，不是用来压东西的。', no: '铜板很普通，正反面都看清了，还是普通的。' }
   ]
 };
 
@@ -3100,6 +3450,8 @@ TEXTS.any_night = {
   opts: [
     { ok: '你生了火。火烧起来之后，黑暗退到几丈之外，就不敢再近了。\n\n你睡得不深，但睡了几段。醒来时火还有炭，天是灰的。' },
     { ok: '你没生火。靠着树坐着，把外套裹紧。\n\n夜里很静，静到能听见自己心跳。天亮之前最冷的那一阵，你差点睡着。但天亮了。', no: '你没生火，也没找到好位置。半夜风起来了，你缩在树根下，冷得发抖，一直到天亮都没睡着。\n\n站起来的时候，腿是僵的。' }
+  ,
+    { ok: '云散了一块，露出几颗星。你认得其中一颗。它不该在这个位置——要么是你记错了，要么是它动了。', no: '云太厚，什么也看不见。' }
   ]
 };
 
@@ -3405,6 +3757,8 @@ TEXTS.bree_debt = {
   opts: [
     { ok: '你走进去，说昨天那次你也在场，缺的东西后来在筐底找到了。\n\n卖菜的愣了一下，松了手。年轻人退到墙边。\n\n围观的人也散了。走出不远，那个年轻人追上来，塞了一个东西给你。', no: '你刚开口，卖菜的就把火撒到你身上，说你想赖账。\n\n人越围越多，你退了。年轻人还站在中间，手还在抖。' },
     { ok: '你从人群外绕过去。\n\n后面的吵声一直在响，你走了一条街还听得见。' }
+  ,
+    { ok: '一共四枚，都是新铸的。卖菜的说他少过两次钱，可这四枚一个子儿也没花出去。', no: '人围得太多，只看见他的手在抖。' }
   ]
 };
 
@@ -3414,6 +3768,8 @@ TEXTS.bree_map = {
   opts: [
     { ok: '你付了钱。\n\n他把图卷起来，用一根线系好。递给你的时候，说了一句：「图上标红的那一段，现在没了。」' },
     { ok: '你问他图是从哪来的。\n\n他看了你一眼，说「我自己走的」。\n\n你指了几处细节问对不对，他都答得很熟。你问到图上标红的那一段时，他停了一下。', no: '他说是跟人买的。你问是跟谁，他说记不清了。\n\n你把图放下，走了。' }
+  ,
+    { ok: '东边那条河，图上画的是直的，实际要绕一个弯。你指出来，他看着你，第一次开口：「你去过。」', no: '你看了一会儿，没看出哪里不对。他把图卷起来，收了。' }
   ]
 };
 
@@ -3441,6 +3797,8 @@ TEXTS.bree_smoke = {
   opts: [
     { ok: '你走进去。\n\n烟是从一间屋子的门缝里出来的。门没有锁。你推开门，屋里的火已经灭了——不是烧完了，是被东西压灭的。\n\n地上有一封信，信封没封口。', no: '你走到一半，被人拦住。他没说话，只是把手按在你胸口。\n\n他的手很重。你退了回来。' },
     { ok: '你看了一眼就走了。\n\n走出两条街，回头还能看见那股烟，歪着，一直没散。' }
+  ,
+    { ok: '不是木头烧着的味道。是羊毛，或者头发。这种味道闻过一次就不会认错。', no: '风把味道吹散了，只闻到一点焦。' }
   ]
 };
 
@@ -3450,6 +3808,8 @@ TEXTS.bree_well = {
   opts: [
     { ok: '你打了一桶上来，先洗脸，然后喝了两口。\n\n水很凉。桶底有东西在响，你倒出来一看，是一枚戒指，细的，卡在木缝里。', no: '桶放下去，绳子忽然脱了手。桶掉进水里，绳子跟着滑进去，很快。\n\n你趴在井台上看着黑下去的水面。' },
     { ok: '你把手伸进水里，试了一下温度，然后走了。\n\n井水有主，这地方看得出来。' }
+  ,
+    { ok: '井壁上一道一道，是打水的人刻的。最上面那几道是新的，刻得很深。刻的不是次数——是日子。', no: '井太深，光进不去。' }
   ]
 };
 
@@ -3459,6 +3819,17 @@ TEXTS.bree_wall = {
   opts: [
     { ok: '你踩着砖缝往上够了一把。拿出来是几张纸，纸上有字，还有一幅很潦草的图。\n\n图画的是一个路口，路口上画了一个叉，叉旁边写着三个字：不要停。', no: '你够到了，但纸是脆的，一捏就碎。\n\n碎纸落在地上，被风卷走了。' },
     { ok: '你看了两眼就走了。\n\n走出很远，还在想那个位置为什么正好是抬手的高度。' }
+  ,
+    { ok: '露出的边角上写着半个字，是「别」。后面被塞进去了。你不知道是「别去」还是「别停」。', no: '纸太脆，一碰就碎，碎屑粘在指头上。' }
+  ]
+};
+
+TEXTS.shire_mill_ash = {
+  title: '烧不化的东西',
+  text: '那块东西在你包里放了两天，还是凉的。\n\n它不是铁，也不是石头。表面被火燎黑了一层，擦掉那层黑，底下是白的，白得很干，像是被烧掉了所有的水。\n\n夜里你把它拿出来看。火光照上去，它不反光。',
+  opts: [
+    { ok: '磨坊的老婆婆认得。她说这不是刻上去的，是长出来的——像骨头里的纹。\n\n「你带走吧。」她说，「别留在夏尔。」', no: '没人认得。\n\n有个货郎看了一眼就移开视线，说他没见过，让你收好。\n\n他把担子换了个肩，走得很急。' },
+    { ok: '你把它放进墙根的石缝里，用土盖住，踩实。\n\n走的时候手是干净的。' }
   ]
 };
 
@@ -3699,6 +4070,8 @@ TEXTS.wild_bones = {
   opts: [
     { ok: '你蹲下来看。\n\n骨头上没有牙印，没有被啃过。有些骨头上有刻痕，很浅，是记号。\n\n你在最上面找到一块不是骨头的——一片铁，很小，像是从什么上面崩下来的。', no: '你蹲下来，刚伸手，骨头堆塌了一角。\n\n你退开，看着它慢慢滑下来。滑完之后，形状还是圆的。' },
     { ok: '你从远处绕过去。\n\n绕的时候你数了一下，一共走了六十多步才绕开。' }
+  ,
+    { ok: '所有骨头的长端都朝着同一个方向，除了最上面那块。那块横着，指向西——你来的方向。', no: '风把最上面那块吹歪了，看不出原来的方向。' }
   ]
 };
 
@@ -3708,6 +4081,8 @@ TEXTS.wild_watch = {
   opts: [
     { ok: '你问他为什么。\n\n「那边今天不对，」他说，「我早上看见的，天上下来了一点东西，落在那边。」\n\n他终于转过身。他的眼睛是好的，但看的方向总比你偏一点。', no: '你问了几句，他不再答。\n\n他一直看着东边。你走的时候，他还是那个姿势。' },
     { ok: '你在远处点了一下头，继续走。\n\n走过他身边的时候，你听见他低声说了句什么，像是在数数。' }
+  ,
+    { ok: '太阳在你背后。他的影子该落到身前，但他脚下没有影子。地上只有你的。', no: '地上全是碎石，影子断成一截一截，看不出。' }
   ]
 };
 
@@ -3764,6 +4139,8 @@ TEXTS.wild_cross = {
   opts: [
     { ok: '你把布掀开。\n\n下面压着一小袋盐和一枚铜板，还有一片木头，上面刻着一个记号。\n\n盐和铜板你收了。木头放回去了，压好。', no: '你掀开布，下面是空的。\n\n布下面什么也没有，连石头都是干的。你站了一会儿，把布重新盖好。' },
     { ok: '你在石堆上又压了一块石头。\n\n石头很沉，放上去之后，整个石堆稳了一点。' }
+  ,
+    { ok: '深蓝色的布，边上有一道白线。和你包里那块，是同一种织法。', no: '布被雨洗得发白，看不出花纹。' }
   ]
 };
 
@@ -3782,6 +4159,8 @@ TEXTS.wild_hill = {
   opts: [
     { ok: '你朝亮点走。\n\n走近了才看清，那不是灯，是一块石头，石头缝里有东西在发光，很淡。\n\n石头下面压着一个包，包里有干粮和一小袋盐。', no: '你走了很久，亮点一直在前面，怎么也走不到。\n\n天亮的时候，你站在山岗上，四周什么也没有。你走了一整夜。' },
     { ok: '你在山岗的背风面找了个地方，睡了。\n\n亮光一直在上面，不近不远。你睡着之前看了它一眼，它好像也暗了一下。' }
+  ,
+    { ok: '一亮一暗，一共七下，停一会儿，再来七下。你在别处数过七：石堆是七块，白的那块朝东。', no: '数到一半就乱了，重来三次，三次都不一样。' }
   ]
 };
 
@@ -3818,6 +4197,8 @@ TEXTS.wild_marker = {
   opts: [
     { ok: '你把布条解下来。\n\n布条内侧缝着一小块皮，上面压了一个名字，字很小。\n\n你把布条折好，收进内袋。', no: '布条很脆，一解就断。\n\n断了之后，你手里只剩两截。' },
     { ok: '你在树枝下面又压了一块石头。\n\n石头不大，但够让它站得直一点。' }
+  ,
+    { ok: '这种扣法不是这一带的。你在夏尔见过一次——绑篱笆的人这么打结。有人把家乡的手法一路带到了这里。', no: '布条太旧，结已经硬了，一碰就掉渣。' }
   ]
 };
 
@@ -3827,6 +4208,8 @@ TEXTS.wild_end = {
   opts: [
     { ok: '你停下来，回头看了一眼。\n\n来路很长，看不到起点。你能想起一些事情，但很多已经想不起来了。\n\n你站了很久，然后继续往前走。', no: '你回头，看见来路上有一个影子。\n\n它停在很远的地方，没有再靠近。你看了很久，转身走了。' },
     { ok: '你没有停，一直往前走。\n\n走进那片平地的时候，你听见自己的脚步变了声音。' }
+  ,
+    { ok: '不是山，也不是雾。是墙。很远，很高，颜色和天一样。它一直在那儿，只是没有人从这边看过它。', no: '你看了很久，只看见光。' }
   ]
 };
 
@@ -4341,7 +4724,7 @@ const META_KEY = 'me_meta_v2';
 const SAVE_KEY = 'me_run_v2';
 
 function defaultMeta(){
-  return { renown:0, materials:0, maxTier:1, talents:[], armory:{}, loadout:{}, runs:0, wins:0, best:0, seen:{}, origins:['ranger','warden','lore'], lastHero:'' };
+  return { renown:0, materials:0, maxTier:1, talents:[], armory:{}, loadout:{}, runs:0, wins:0, best:0, seen:{}, origins:['ranger','warden','lore'], lastHero:'', pack:[] };
 }
 function loadMeta(){
   try{
@@ -4549,8 +4932,9 @@ function newGame(heroId, tierId, seed){
   const ef = equippedFx(META.loadout || {});
   const mods = tierMods(tier.id);
 
-  const hpMax = hero.hp + tf.hpMax + ef.hpMax;
-  const supplyMax = Math.max(3, hero.supply + tf.supplyMax + ef.supplyMax + (mods.supply||0) + JOURNEY_SUPPLY);
+  const pb = packBonus();
+  const hpMax = hero.hp + tf.hpMax + ef.hpMax + pb.hpMax;
+  const supplyMax = Math.max(3, hero.supply + tf.supplyMax + ef.supplyMax + (mods.supply||0) + JOURNEY_SUPPLY + pb.supplyMax);
   const resolveMax = hero.resolve + tf.resolveMax + ef.resolveMax + tf.extraResolve;
 
   G = {
@@ -4567,7 +4951,7 @@ function newGame(heroId, tierId, seed){
     items:[], loot:[], flags:{}, seen:{}, chain:null, echoes:[],
     shadow:0, vow:null, vowLayer:0, costsTaken:[], tokens:[], groupCount:{},
     thread: makeThread(seed),
-    companion:null, companionMet:false, companionLeft:null,
+    companion:null, companionMet:false, companionLeft:null, companionMoment:false,
     afterglow:null,
     map, at:map.layers[0][0].id, layer:0,
     screen:'map', event:null, pending:null, log:[],
@@ -4576,12 +4960,15 @@ function newGame(heroId, tierId, seed){
     freeRerolls: (tf.rules.extraReroll || hero.rule === 'extraReroll') ? 1 : 0, eventCount:0,
     steadyLeft:STEADY_LIMIT + (tf.rules.steadyExtra ? 1 : 0), shadowResistUsed:false,
     shadowGuardUsed:false, secLeft:SEC_LIMIT,
-    renown:0, materials:0, over:null,
+    renown:0, materials:0, over:null, packBonus:pb,
     campHalf: !!mods.campHalf, dcBonus: mods.dc||0, supplyDrain: mods.supplyDrain||0, dmgBonus: mods.dmg||0,
     hunt: !!mods.hunt, noRetreat: !!mods.noRetreat, finalDC: mods.finalDC||0,
     rules: tf.rules,
     equipped: Object.assign({}, META.loadout || {})
   };
+
+  /* 行装已经算进上限，清空，避免下一局重复吃。 */
+  if((META.pack || []).length){ META.pack = []; saveMeta(META); }
 
   /* 出身自带 */
   if(hero.start){
@@ -4767,11 +5154,14 @@ function addShadow(n){
   if(!G || !n) return;
   const before = shadowStage().name;
   G.shadow = Math.max(0, Math.min(SHADOW_MAX, (G.shadow || 0) + n));
-  /* 守夜人：第一次要越过 6 时，把灯按住。只挡一次，且只挡「变深」 */
+  /* 守夜人：第一次要越过 6 时，把灯按住。只挡一次，且只挡「变深」。
+     退回来不是免费的：代价是 1 点决心（这一夜没能睡）。 */
   if(n > 0 && G.hero && G.hero.rule === 'shadowGuard' && !G.shadowGuardUsed && G.shadow >= 6){
     G.shadow = 5;
     G.shadowGuardUsed = true;
-    addLog('你守过夜，知道怎么把灯留住。');
+    G.resolve = Math.max(0, (G.resolve || 0) - 1);
+    G.supply = Math.max(0, (G.supply || 0) - 2);
+    addLog('你守过夜，知道怎么把灯留住。这一夜你没能睡着，干粮也吃掉了大半。');
   }
   const after = shadowStage();
   if(after.name !== before){
@@ -5057,6 +5447,77 @@ function companionEvent(node){
   };
 }
 
+
+/* 同行者专属：相遇之后，每个人还有一件自己的事。
+   只在他还在队伍里时触发，每局最多一次，两段文本按人分开写。
+   它不是「能力」，是一个人在路上露出来的一点底细 —— 问不问由你。 */
+const COMPANION_MOMENTS = {
+  hunter: {
+    title: '磨箭头的人',
+    text: '夜里他坐在火边磨箭头，磨得很慢。\n\n磨完一支，他把箭头举到火前看，然后放下，换下一支。他没有看你，但你知道他在等你问。',
+    options: [
+      { label: '问他往东去做什么', check:{attr:'spirit',dc:12},
+        ok:{ text:'他说他在找一个人，找了三年。「找到了呢？」他想了想，说不知道。\n\n他继续磨箭头，磨得比刚才慢。', fx:{resolve:2,renown:1} },
+        no:{ text:'他没回答，把磨好的箭头收进袋子里，躺下了。\n\n第二天他走在你后面，隔得比平时远。', fx:{} } },
+      { label: '不问，替他看着火', fx:{},
+        ok:{ text:'你添了两次柴。他磨到很晚，箭头一支一支摆整齐。\n\n第二天上路，他走在你前面半步。', fx:{supply:1,resolve:1} } }
+    ]
+  },
+  trader: {
+    title: '箱子最底下',
+    text: '他清箱子的时候，你看见最底下压着一只小鞋。\n\n鞋很小，是孩子的。他没有把它拿出来，也没有盖住，就那样让你看见了。\n\n然后他继续数他的货。',
+    options: [
+      { label: '问他那只鞋是谁的', check:{attr:'spirit',dc:12},
+        ok:{ text:'他说是他儿子的。孩子在布理，跟着外婆。「我一年回去一次。」\n\n他把鞋往箱角推了推，说这一趟走完就回去。', fx:{resolve:2,renown:1} },
+        no:{ text:'他把箱子合上了，说该走了。\n\n那天他没有再说一句话。', fx:{resolve:-1} } },
+      { label: '不问，帮他把箱子抬上肩', fx:{},
+        ok:{ text:'箱子比看起来重。他道了谢，说这箱子里的东西有一半是给别人带的。', fx:{supply:1,renown:1} } }
+    ]
+  },
+  child: {
+    title: '还有多久',
+    text: '孩子问你，还有多久到。\n\n你说不知道。他点点头，开始数自己的步子，数到一百就重新数。\n\n他数得很认真，嘴唇一直在动。',
+    options: [
+      { label: '问他知道到了以后要做什么吗', check:{attr:'spirit',dc:11},
+        ok:{ text:'他说他要找一个人，把一句话带到。「什么话？」他摇头，说答应过不说。\n\n他继续数步子，数得比刚才快。', fx:{resolve:2,renown:1} },
+        no:{ text:'他没答，数错了，从头开始数。', fx:{} } },
+      { label: '跟着他一起数', fx:{},
+        ok:{ text:'你们一起数到一百，又一起重新开始。数到第七个一百的时候，天黑了。\n\n那一程走得比平时轻。', fx:{supply:1,resolve:1} } }
+    ]
+  },
+  soldier: {
+    title: '另外半边甲',
+    text: '他卸甲的时候，你看见剩下的那半边底下，衬布上有一道很长的口子，缝过，缝得很难看。\n\n他注意到你在看，说：「另外半边留在河那边了。」\n\n他没有再说下去。',
+    options: [
+      { label: '问他那半边是怎么丢的', check:{attr:'valor',dc:12},
+        ok:{ text:'他说是替一个人挡的。「挡没挡住？」他说挡住了。\n\n他把甲重新穿上，扣得很慢，一颗一颗扣。', fx:{resolve:2,renown:2} },
+        no:{ text:'他把甲翻过来，背对着你。\n\n那天夜里他没有睡，一直坐着。', fx:{resolve:-1} } },
+      { label: '不问，帮他把扣子扣上', fx:{},
+        ok:{ text:'扣子很涩，你扣了很久。他一动不动，像怕碰坏了什么。', fx:{resolve:2,hp:1} } }
+    ]
+  }
+};
+
+function companionMoment(node){
+  if(!G || !G.companion || G.companionMoment) return null;
+  if(node.type === 'start' || node.type === 'final' || node.type === 'treasure') return null;
+  if(node.layer < (G.companion.firstLayer || 0) + 2) return null;
+  const def = COMPANION_MOMENTS[G.companion.id];
+  if(!def) return null;
+  const rnd = mulberry32(hashStr(G.seed + '|cm|' + node.id));
+  if(rnd() > 0.34) return null;
+  G.companionMoment = true;
+  return {
+    id:'companion_moment',
+    region:node.region,
+    type:'story',
+    kicker:'同行',
+    title:def.title,
+    text:def.text,
+    options:def.options
+  };
+}
+
 function pickEvent(node){
   const region = node.region;
   const cat = node.type;
@@ -5163,9 +5624,17 @@ function pickEvent(node){
   if(!pool.length) pool = EVENTS.filter(e=>e.region==='any' && (e.weight||0)>0);
 
   const rnd = mulberry32(hashStr(G.seed+'|'+node.id+'|e'));
-  const total = pool.reduce((s,e)=>s+(e.weight||10),0);
+  /* 跨局记忆：见过的事件降权，而不是剔除。
+     剔除会让池子越玩越空；降权让老事件变成「偶尔重逢」，
+     没见过的那批自然浮上来 —— 同一颗种子在单局内仍然完全可复现。 */
+  const seenW = e=>{
+    const base = e.weight || 10;
+    const n = (META && META.seen && META.seen[e.id]) || 0;
+    return n ? base / (1 + n * 2.2) : base;
+  };
+  const total = pool.reduce((s,e)=>s+seenW(e),0);
   let r = rnd()*total;
-  for(const e of pool){ r -= (e.weight||10); if(r<=0) return e; }
+  for(const e of pool){ r -= seenW(e); if(r<=0) return e; }
   return pool[pool.length-1];
 }
 
@@ -5201,8 +5670,10 @@ function recalc(){
     spirit:  h.spirit  + tf.spirit  + eq.spirit  + lb.spirit
   };
   const tier = TIERS.find(t=>t.id===G.tierId) || TIERS[0];
-  G.hpMax = G.hero.hp + tf.hpMax + eq.hpMax + lb.hpMax;
-  G.supplyMax = Math.max(3, G.hero.supply + tf.supplyMax + eq.supplyMax + lb.supplyMax + (tier.mods.supply||0) + (G.hero.rule === 'rider' ? -1 : 0));
+  /* 行装（营地用材料换的）已经算进上限：它的值存在 G 里，因为 META.pack 在出发时就被清空了。 */
+  const pk = G.packBonus || { hpMax:0, supplyMax:0 };
+  G.hpMax = G.hero.hp + tf.hpMax + eq.hpMax + lb.hpMax + (pk.hpMax || 0);
+  G.supplyMax = Math.max(3, G.hero.supply + tf.supplyMax + eq.supplyMax + lb.supplyMax + (tier.mods.supply||0) + (G.hero.rule === 'rider' ? -1 : 0) + (pk.supplyMax || 0));
   G.resolveMax = G.hero.resolve + tf.resolveMax + eq.resolveMax + lb.resolveMax + tf.extraResolve + (G.hero.rule === 'hobbit' ? 1 : 0);
   clamp();
 }
@@ -5491,7 +5962,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.13</div>
+    <div class="eyebrow">文字跑团 · v0.14</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十五程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -5590,6 +6061,42 @@ function randSeed(){
 
 function toTitle(){ G = null; renderTitle(); }
 
+/* 行装：材料除了锻造之外的出口。买下的东西在下一局出发时直接抬高上限，
+   不占装备栏、不进战利品、堕影也带不走——它已经用在身上了。 */
+const PACK_SHOP = [
+  { id:'lambas',  cost:4,  hpMax:2, supplyMax:0, label:'兰巴斯' },
+  { id:'weed',    cost:3,  hpMax:1, supplyMax:1, label:'阿塞拉斯草' },
+  { id:'cordial', cost:10, hpMax:4, supplyMax:0, label:'秘银瓶' }
+];
+function packBonus(){
+  const out = { hpMax:0, supplyMax:0 };
+  for(const pid of (META.pack || [])){
+    const row = PACK_SHOP.find(r=>r.id===pid);
+    if(!row) continue;
+    out.hpMax += row.hpMax || 0;
+    out.supplyMax += row.supplyMax || 0;
+  }
+  return out;
+}
+function buyPack(id){
+  const row = PACK_SHOP.find(r=>r.id===id);
+  if(!row) return;
+  if((META.pack || []).length >= 2) return;
+  if(META.materials < row.cost) return;
+  META.materials -= row.cost;
+  META.pack = META.pack || [];
+  META.pack.push(id);
+  saveMeta(META);
+  renderCamp();
+}
+function clearPack(){
+  if(!(META.pack || []).length) return;
+  META.pack.forEach(id=>{ const row = PACK_SHOP.find(r=>r.id===id); if(row) META.materials += row.cost; });
+  META.pack = [];
+  saveMeta(META);
+  renderCamp();
+}
+
 /* ---------- 营地 ---------- */
 function renderCamp(){
   const m = META;
@@ -5627,6 +6134,15 @@ function renderCamp(){
       <div class="d">选难度，选身份，然后走。</div>
       <div class="badge">当前最高 ${META.maxTier} 档</div>
     </button>
+  </div>
+
+  <div class="campcard" style="cursor:default;display:block">
+    <div class="n">行装</div>
+    <div class="d">用材料换一件带在身上的东西。下一局出发时生效，最多两件。</div>
+    <div class="btnrow" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+      ${PACK_SHOP.map(r=>`<button class="btn sm" onclick="buyPack('${r.id}')" ${(m.materials<r.cost||(m.pack||[]).length>=2)?'disabled':''}>${r.label} · ${r.cost} 材料</button>`).join('')}
+    </div>
+    <p class="note" style="margin-top:8px">${(m.pack||[]).length ? '已带：' + (m.pack||[]).map(id=>{const r=PACK_SHOP.find(x=>x.id===id);return r?r.label:id;}).join('、') + '（<a href="#" onclick="clearPack();return false;" style="color:var(--gold)">退掉</a>）' : '还没带东西。'}</p>
   </div>
 
   <p class="note">局内拾到的装备当场生效。花 1 点决心把它「收好」（每局 2 次），倒下或撤退也能带回；没收好的按结局折损，堕入阴影则什么都留不下。重复带回的会折成材料。</p>
@@ -6043,7 +6559,9 @@ function enterNode(id){
     /* 熟路：认得路，就少走冤枉路（行路消耗 −1，但不倒给补给）。
        路耗 +1 只作用于荒野段：全程 +1 会让补给上限 5 的局必然饿死，
        玩家从第 4 程起就只能看着血一格一格掉，没有可做的事。 */
-    const drain = (G.supplyDrain && layerRegion(node.layer) === 'wild') ? G.supplyDrain : 0;
+    /* 隔层生效：荒野五层全程 +1 等于凭空拿走五点补给（上限的一半），
+       第四档会因此直接掉到三成通关。改成每两层算一次，压力还在，但不至于走不动。 */
+    const drain = (G.supplyDrain && layerRegion(node.layer) === 'wild' && node.layer % 2 === 0) ? G.supplyDrain : 0;
     G.supply -= Math.max(0, 1 + drain - ((G.rules && G.rules.roadSave) || 0));
     /* 越往东，侵蚀越重。
        不再有「到 7 之后每层再 +1」：那是自动滑坡，玩家一进这个区间就必到 8，
@@ -6058,8 +6576,11 @@ function enterNode(id){
      在荒野之前就被磨光，玩家没有可应对的窗口。 */
   if(G.hunt && node.layer > 0 && layerRegion(node.layer) === 'wild'){
     const rnd = mulberry32(hashStr(G.seed+'|hunt|'+id));
-    if(rollD20(rnd) + G.attrs.spirit < effDC(13)){
-      hurt(2);
+    /* DC 12 / 伤害 1：原来是 DC 13 / 伤害 2，荒野五层走下来平均掉 4.5 血，
+       第四档的通关率因此从 62% 直接掉到 20%。追踪该是「一直有人跟着」的压力，
+       不是一次判死。 */
+    if(rollD20(rnd) + G.attrs.spirit < effDC(12)){
+      hurt(1);
       addLog('追踪者跟上来了一点。');
       pushEcho({ t:'hurt', once:true, cause:'hunt' });
     }
@@ -6120,7 +6641,7 @@ function enterNode(id){
     G.pending = null; render(); return;
   }
 
-  const ev = threadEvent(node) || companionEvent(node) || pickEvent(node);
+  const ev = threadEvent(node) || companionMoment(node) || companionEvent(node) || pickEvent(node);
   if(!ev){
     G.screen = 'event';
     G.event = { id:'__empty', kicker:'途中', title:'一路无事', text:'这一段路走得平静。没有遇到什么，也没有失去什么。',
@@ -6128,6 +6649,9 @@ function enterNode(id){
     G.pending = null; render(); return;
   }
   G.seen[ev.id] = true;
+  /* 跨局记忆：记下「见过几次」，下次抽事件时降权。
+     只写内存，endRun 时随 META 一起落盘，不给每个节点加一次 localStorage 写。 */
+  if(META && META.seen && EVENTS.some(e=>e.id===ev.id)) META.seen[ev.id] = (META.seen[ev.id] || 0) + 1;
   G.eventCount = (G.eventCount || 0) + 1;
   if(ev.group){
     G.groupCount = G.groupCount || {};
@@ -6740,10 +7264,24 @@ function endRun(kind){
      kept 里装着的对象都来自 loot，用引用差集算 lost：收好的排在前面，
      再按 kept.length 去切 slice 会把账算错。 */
   const lost = loot.filter(l => kept.indexOf(l) < 0);
+  /* 这一趟做到的事。不是成就，也不是评分：只在真的做到时写一句，
+     凑不够就不写 —— 它回答的是「你走了一条什么样的路」，不是「你得了多少分」。 */
+  const deeds = [];
+  if(G.companion && G.companion.used === 0 && kind !== 'shadow')
+    deeds.push('有人跟你走到了这里，你一次也没让他替你挡。');
+  if((G.shadow || 0) <= 2 && (kind === 'win' || kind === 'retreat'))
+    deeds.push('走到这里，阴影几乎没有跟上。');
+  if(kind === 'win' && loot.length === 0)
+    deeds.push('一路什么也没捡，还是走到了。');
+  if((G.steadyLeft || 0) >= (STEADY_LIMIT || 3))
+    deeds.push('一次也没念过那个名字。');
+  if(kind === 'win' && G.vow)
+    deeds.push('立过的誓，没有破。');
+
   G.over = { kind, reached, renown, mats, kept, added, upgraded, melted, meltMats,
              armoryTotal: Object.keys(META.armory).length,
              threadState, threadBonus, threadMats, threadLine,
-             compState, compLine, compBonus,
+             compState, compLine, compBonus, deeds,
              lost, echo: buildEcho(kind, reached) };
   G.screen = 'result';
   clearRun();
@@ -6784,6 +7322,11 @@ function renderResult(){
        }).join('')}</div>`
     : '';
 
+  const deedsHtml = (o.deeds && o.deeds.length)
+    ? '<div class="card pad" style="margin-top:14px"><h3>这一趟</h3><ul class="loglist" style="margin-top:8px">'
+      + o.deeds.map(d=>'<li>' + esc(d) + '</li>').join('') + '</ul></div>'
+    : '';
+
   const echoHtml = o.echo
     ? `<div class="card echo-card"><div class="ek">回响</div><div class="prose">${String(o.echo).split('\n').filter(x=>x.trim()).map(p=>`<p>${esc(p)}</p>`).join('')}</div></div>`
     : '';
@@ -6796,6 +7339,8 @@ function renderResult(){
     </div>
 
     ${echoHtml}
+
+    ${deedsHtml}
 
     <div class="summary">
       <div><div class="k">抵达</div><div class="v">第 ${o.reached} / ${TOTAL_LAYERS} 程</div></div>
@@ -6894,6 +7439,17 @@ function clearRun(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
   const want = q && q.get('screen');
 
   /* 调试/预览入口：直接打开营地类页面 */
+  if(want === 'result'){
+    /* 结算页预览：构造一局「带着同伴走到最后」的结果，用来核对事迹与回响的排版 */
+    META = defaultMeta();
+    newGame('ranger', 3, 'PREVIEW-RESULT');
+    G.layer = TOTAL_LAYERS - 1;
+    G.shadow = 2; G.steadyLeft = STEADY_LIMIT;
+    G.companion = { id:'hunter', trust:2, used:0, firstLayer:4 };
+    G.companionMoment = true;
+    endRun('win');
+    return;
+  }
   if(want === 'camp' || want === 'talents' || want === 'armory'){
     META = defaultMeta();
     META.renown = 48; META.materials = 12; META.maxTier = 4;

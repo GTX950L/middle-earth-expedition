@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.13，能完整玩通。', '版本号']
+    ['v0.14，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -520,7 +520,11 @@ section('③ 规则接线（天赋 / 出身 / 难度）');
   if (started([], 'ranger', 2).call('effDC', 10) !== 11) fail('难度 II 的 DC +1 没生效');
   if (started([], 'ranger', 3).G().supplyMax !== t1.supplyMax - 1) fail('难度 III 的补给上限 −1 没生效');
   const t4 = started([], 'ranger', 4).G();
-  if (!t4.hunt || t4.supplyDrain !== 1) fail('难度 IV 的追踪 / 路耗 +1 没生效');
+  /* v0.14 平衡：第 4 档只加追踪；路耗 +1 挪到第 5 档。
+     原先 4 档一次加两条，通关率从 62% 掉到 20%，升一档等于撞墙。 */
+  if (!t4.hunt || t4.supplyDrain) fail('难度 IV 应为「只加追踪」，路耗留给第 V 档');
+  const t5 = started([], 'ranger', 5).G();
+  if (t5.supplyDrain !== 1 || t5.campHalf) fail('难度 V 应为「只加荒野路耗」，恢复减半留给第 VI 档');
   const t6 = started([], 'ranger', 6).G();
   if (!t6.noRetreat || t6.finalDC !== 16 || t6.dmgBonus !== 1) fail('难度 VI 的禁退 / 终局检定 / 伤害 +1 没生效');
   const combo = started(['v7'], 'ranger', 6);
@@ -1088,17 +1092,18 @@ section('⑨ 可玩性与平衡（路线 / 阴影对抗 / 难度）');
 
   /* 9.6 难度累积：第 6 档要带上 2/3/4/5 档的全部修正 */
   const m6 = tierMods(6);
-  if (m6.dc !== 1 || m6.supply !== -1 || m6.supplyDrain !== 1 || m6.finalDC !== 16 || m6.dmg !== 1 ||
+  /* 第 4 档也带一次 DC +1，所以第 6 档累积到 2 */
+  if (m6.dc !== 2 || m6.supply !== -1 || m6.supplyDrain !== 1 || m6.finalDC !== 16 || m6.dmg !== 1 ||
       !m6.hunt || !m6.campHalf || !m6.noRetreat) fail('tierMods(6) 没有继承前面各档');
   const t6 = pf();
   t6.run('META = defaultMeta()');
   t6.call('newGame', 'ranger', 6, 'TIER6');
   const g6 = t6.G();
-  if (g6.dcBonus !== 1 || !g6.hunt || !g6.campHalf || !g6.noRetreat || g6.finalDC !== 16 ||
+  if (g6.dcBonus !== 2 || !g6.hunt || !g6.campHalf || !g6.noRetreat || g6.finalDC !== 16 ||
       g6.dmgBonus !== 1 || g6.supplyDrain !== 1) fail('第 6 档局内状态没接上累积修正');
   t6.run('G.hp=5;');
   t6.call('applyFx', { hp: 3 }, { camp: true });
-  if (t6.G().hp !== 6) fail('无援的营地恢复减半不是「3 → 1」');
+  if (t6.G().hp !== 6) fail('终局的营地恢复减半不是「3 → 1」');
   const t1 = pf();
   t1.run('META = defaultMeta()');
   t1.call('newGame', 'ranger', 1, 'TIER1');
@@ -1572,7 +1577,112 @@ section('⑮ 路上有些不必赢也不必输的事');
   ok('状态句：5 类各 3 句、条件命中、伤优先于粮、每程一条、有余味不叠、特殊事件不接');
 }
 
-section('⑯ 产物');
+section('⑯ v0.14：世界的记忆 / 同行者 / 行装 / 事迹');
+{
+  const mk = (store) => {
+    const c = makeCtx(store || {});
+    return {
+      c,
+      run: e => vm.runInContext(e, c),
+      call(n, ...a) { c.__a = a; return vm.runInContext(n + '(...__a)', c); },
+      G: () => vm.runInContext('G', c)
+    };
+  };
+
+  /* 16.1 每条「接 flag」的后续事件，那个 flag 都必须真的有人写 */
+  const writers = new Set();
+  const scanFlags = o => {
+    if (!o || typeof o !== "object") return;
+    if (o.flag) for (const k of Object.keys(o.flag)) writers.add(k);
+    for (const k in o) if (o[k] && typeof o[k] === "object") scanFlags(o[k]);
+  };
+  EVENTS.forEach(scanFlags);
+  const condEvents = EVENTS.filter(e => e.require && e.require.flag);
+  if (condEvents.length < 8) fail("接 flag 的后续事件只有 " + condEvents.length + " 条，世界还是不会记得你");
+  for (const e of condEvents) {
+    if (!writers.has(e.require.flag)) fail("后续事件在等一个没人写的 flag：" + e.id + " → " + e.require.flag);
+    if (!TEXTS[e.id]) fail("接 flag 的事件缺正式正文：" + e.id);
+    if (TEXTS[e.id] && TEXTS[e.id].opts && TEXTS[e.id].opts.length !== e.options.length)
+      fail("接 flag 的事件正文与选项数不符：" + e.id);
+  }
+  const flagNames = Array.from(writers);
+  const unread = flagNames.filter(f => f !== "letter_home" && !EVENTS.some(e => e.require && e.require.flag === f));
+  ok("接 flag 的后续事件 " + condEvents.length + " 条；写入的 flag " + flagNames.length + " 个，其中 " +
+     (flagNames.length - unread.length) + " 个已被事件读取（其余留给正文与回响）");
+
+  /* 16.2 跨局记忆：一局走完，META.seen 要记下遇过的事件 */
+  runOne("ranger", 1, "MEM-01", false);
+  const seenMap = get("META.seen") || {};
+  const seenKeys = Object.keys(seenMap);
+  if (seenKeys.length < 3) fail("跨局记忆没写进 META.seen（只有 " + seenKeys.length + " 条）");
+  if (seenKeys.some(k => !EVENT_IDS.has(k))) fail("META.seen 里混进了不存在的事件 id");
+  ok("跨局记忆：一局记下 " + seenKeys.length + " 个事件，键全部合法（见过的事件在下一局降权）");
+
+  /* 16.3 行装：材料换的消耗品要真的抬上限，且出发后清空 */
+  const A = mk();
+  A.run("META = defaultMeta()");
+  A.call("newGame", "ranger", 1, "PACK-0");
+  const baseHp = A.G().hpMax;
+  const B = mk();
+  B.run("META = defaultMeta(); META.materials = 99; buyPack('lambas'); buyPack('weed')");
+  B.call("newGame", "ranger", 1, "PACK-1");
+  if (B.G().hpMax !== baseHp + 3) fail("行装没有抬高生命上限（" + B.G().hpMax + " vs " + (baseHp + 3) + "）");
+  if (B.run("META.pack.length") !== 0) fail("行装用过之后没有清空，下一局会重复吃");
+  if (B.run("META.materials") !== 99 - 7) fail("行装扣款不对");
+  const C2 = mk();
+  C2.run("META = defaultMeta(); META.materials = 99; buyPack('lambas')");
+  C2.run("buyPack('lambas'); buyPack('weed')");
+  if (C2.run("META.pack.length") !== 2) fail("行装上限不是两件");
+  C2.run("clearPack()");
+  if (C2.run("META.pack.length") !== 0 || C2.run("META.materials") !== 99) fail("退掉行装没有退款");
+  ok("行装：兰巴斯 +2 / 阿塞拉斯草 +1 生命 +1 补给，最多两件，出发后清空，退掉退款");
+
+  /* 16.4 同行者专属事件：每人一条，每局最多一次，问不问都有落点 */
+  const D = mk();
+  D.run("META = defaultMeta()");
+  D.call("newGame", "ranger", 1, "CM-01");
+  D.run("G.companion = { id:'hunter', trust:2, used:0, firstLayer:1 }");
+  let moment = null, tries = 0;
+  for (let i = 0; i < 60 && !moment; i++) {
+    moment = D.call("companionMoment", { id: "cm" + i, layer: 6, type: "story", region: "shire" });
+    tries++;
+  }
+  if (!moment) fail("同行者专属事件一次也没抽中（种子派生有问题）");
+  else {
+    if (!moment.title || !moment.text) fail("同行者专属事件缺标题或正文");
+    if (!moment.options || moment.options.length !== 2) fail("同行者专属事件应为两个选项");
+    if (D.call("companionMoment", { id: "cm-x", layer: 7, type: "story", region: "shire" }))
+      fail("同行者专属事件一局触发了不止一次");
+    ok("同行者专属事件：抽 " + tries + " 个节点命中，两个选项，整局只此一次");
+  }
+  const CM = get("COMPANION_MOMENTS");
+  const CMS = get("COMPANIONS");
+  for (const c of CMS) {
+    if (!CM[c.id]) fail("同行者缺专属事件：" + c.id);
+    else if (CM[c.id].options.length !== 2) fail("同行者专属事件选项数不对：" + c.id);
+  }
+  ok("四名同行者各有专属事件，选项均为两条（问 / 不问）");
+
+  /* 16.5 结算事迹：只在真的做到时出现 */
+  const E = mk();
+  E.run("META = defaultMeta()");
+  E.call("newGame", "ranger", 1, "DEED-1");
+  E.run("G.shadow = 1; G.steadyLeft = STEADY_LIMIT; G.companion = { id:'hunter', trust:2, used:0, firstLayer:1 }; G.loot = [];");
+  E.call("endRun", "win");
+  const deeds = E.G().over.deeds;
+  if (!deeds || !deeds.length) fail("通关且同伴未出手，事迹一条也没有");
+  if (deeds.length > 5) fail("事迹条数超过上限");
+  const F2 = mk();
+  F2.run("META = defaultMeta()");
+  F2.call("newGame", "ranger", 1, "DEED-2");
+  F2.run("G.shadow = 7; G.steadyLeft = 0; G.companion = { id:'hunter', trust:2, used:2, firstLayer:1 }; G.loot = [{ id:'sword', plus:0 }];");
+  F2.call("endRun", "shadow");
+  const bad = F2.G().over.deeds || [];
+  if (bad.length) fail("没做到的事也写进了事迹：" + bad.join(" / "));
+  ok("结算事迹：做到才写、最多五条、堕影者不列");
+}
+
+section('⑰ 产物');
 ok('index.html ' + (fs.statSync(HTML_PATH).size / 1024).toFixed(1) + ' KB / ' + html.split('\n').length + ' 行');
 ok('总层数 ' + TOTAL_LAYERS + '，装备 ' + Object.keys(ITEMS).length + ' 件，出身 ' + HEROES.length + ' 个，难度 ' + TIERS.length + ' 档');
 
