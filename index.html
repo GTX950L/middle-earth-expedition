@@ -337,7 +337,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.15
+   中土远征 v0.16
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -926,7 +926,29 @@ const TALENTS = [
   { id:'r5', b:'road', row:1, name:'野营', cost:8, req:['r2'], fx:{hpMax:2,supplyMax:1}, desc:'生命上限 +2，补给上限 +1。' },
   { id:'r6', b:'road', row:2, name:'归途', cost:14, req:['r3'], rule:'homeward', desc:'撤退时声望不再减半。' },
   { id:'r7', b:'road', row:2, name:'老练旅人', cost:14, req:['r4'], rule:'steadyExtra', desc:'每局多一次「记起自己的名字」。' },
-  { id:'r8', b:'road', row:2, name:'长途', cost:18, req:['r6','r7'], fx:{hpMax:2,supplyMax:2}, desc:'生命上限 +2，补给上限 +2。' }
+  { id:'r8', b:'road', row:2, name:'长途', cost:18, req:['r6','r7'], fx:{hpMax:2,supplyMax:2}, desc:'生命上限 +2，补给上限 +2。' },
+
+  /* ===== v0.16：第四层 —— 每条支线走到头，只能选一条路 ===== */
+  { id:'v9',  b:'valor', row:3, name:'死战', cost:20, req:['v6'], xcl:'valor_end', rule:'lastStand',
+    desc:'生命只剩 1 点时，所有检定 +3。' },
+  { id:'v10', b:'valor', row:3, name:'血勇', cost:20, req:['v7'], xcl:'valor_end', fx:{valor:2,hpMax:2},
+    desc:'勇武 +2，生命上限 +2。' },
+
+  { id:'l9',  b:'lore', row:3, name:'穷究', cost:20, req:['l6'], xcl:'lore_end', rule:'deepStudy',
+    desc:'重掷时额外 +2。' },
+  { id:'l10', b:'lore', row:3, name:'旁通', cost:20, req:['l7'], xcl:'lore_end', fx:{lore:2,spirit:1},
+    desc:'学识 +2，心志 +1。' },
+
+  { id:'k9',  b:'luck', row:3, name:'赌徒', cost:20, req:['k6'], xcl:'luck_end', rule:'gambler',
+    desc:'「代价成功」时，一半的机会不用付代价。' },
+  { id:'k10', b:'luck', row:3, name:'谨慎', cost:20, req:['k7'], xcl:'luck_end', fx:{cunning:2,supplyMax:2},
+    desc:'机敏 +2，补给上限 +2。' },
+
+  { id:'r9',  b:'road', row:3, name:'远行', cost:20, req:['r6'], xcl:'road_end', rule:'farWalker',
+    desc:'撤退时多带一件东西。' },
+  { id:'r10', b:'road', row:3, name:'归心', cost:20, req:['r7'], xcl:'road_end', fx:{hpMax:2,supplyMax:2},
+    desc:'生命上限 +2，补给上限 +2。' }
+
 ];
 
 /* 事件：region = shire / bree / wild / any；type 对应节点类型 */
@@ -5973,6 +5995,64 @@ const COMPANION_MOMENTS = {
   }
 };
 
+/* 告别：信任用完的那一程，他会自己说要走。这一段不给数值，只给一个说话的机会。
+   说完了才真的离开 —— 不然同行者就只是一条会消失的资源条。 */
+const COMPANION_FAREWELL = {
+  hunter: {
+    text: '他把弓从肩上取下来，检查了一遍弦，又装回去。\n\n「往北。」他说，「该回去了。」\n\n他没有说谢，也没有说别的。',
+    options: [
+      { label:'问他还会不会回来', companion:'part', fx:{resolve:2},
+        ok:{ text:'他想了想，说不知道。\n\n「你要是往北走，」他说，「在岔路口等我三天。」' } },
+      { label:'把包里一块干粮给他', companion:'part', fx:{supply:-1,renown:3},
+        ok:{ text:'他接了，没有吃，塞进怀里。\n\n走的时候他回头看了一眼，很短。' } }
+    ]
+  },
+  trader: {
+    text: '他把箱子放下来，坐在上面，喘了一会儿。\n\n「再往前就没有人买东西了。」他说，「我得到这儿。」',
+    options: [
+      { label:'问他箱子里那只鞋', companion:'part', fx:{resolve:2,renown:2},
+        ok:{ text:'他打开箱子，把鞋拿出来看了看，又放回去。\n\n「回去给他。」他说。' } },
+      { label:'帮他把箱子抬上肩', companion:'part', fx:{supply:1,renown:2},
+        ok:{ text:'箱子很重。他站直了，说这一趟认识你不错。' } }
+    ]
+  },
+  child: {
+    text: '他停下来，说他要往那边走了。\n\n他指的不是东边，是北边一条更小的路。\n\n「我家在那边。」',
+    options: [
+      { label:'送他一段', companion:'part', fx:{supply:-1,resolve:2,renown:3},
+        ok:{ text:'你把他送到路口。他跑了几步，回头挥手，然后跑远了。' } },
+      { label:'把身上一点吃的给他', companion:'part', fx:{supply:-2,resolve:1,renown:3},
+        ok:{ text:'他收下了，没有当场吃。\n\n他说他会记住这条路。' } }
+    ]
+  },
+  soldier: {
+    text: '他站住了，看着前面。\n\n「到这儿吧。」他说，「再往前，我这身甲就不够了。」\n\n他把剩下的半边甲解下来，靠在石头上。',
+    options: [
+      { label:'问他那半边甲的事', companion:'part', fx:{resolve:2,renown:3},
+        ok:{ text:'他说河那边，替一个人挡的。\n\n「他活着。」他说，「这就够了。」' } },
+      { label:'把甲帮他重新系上', companion:'part', fx:{resolve:1,renown:4},
+        ok:{ text:'他愣了一下，然后自己把扣子扣好了。\n\n「你走吧。」他说。' } }
+    ]
+  }
+};
+
+function companionFarewell(node){
+  if(!G || !G.companion || !G.companion.pendingLeave) return null;
+  if(node.type === 'start' || node.type === 'final' || node.type === 'treasure') return null;
+  const def = COMPANION_FAREWELL[G.companion.id];
+  if(!def) return null;
+  const cd = COMPANIONS.find(c => c.id === G.companion.id);
+  return {
+    id:'companion_farewell',
+    region:node.region,
+    type:'story',
+    kicker:'同行',
+    title:'到这里吧',
+    text:def.text,
+    options:def.options
+  };
+}
+
 function companionMoment(node){
   if(!G || !G.companion || G.companionMoment) return null;
   if(node.type === 'start' || node.type === 'final' || node.type === 'treasure') return null;
@@ -6437,7 +6517,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.15</div>
+    <div class="eyebrow">文字跑团 · v0.16</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十五程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -6746,21 +6826,43 @@ function openTalents(){ G = G || null; renderTalents(); }
 function openArmory(){ renderArmory(); }
 
 /* ---------- 天赋树 ---------- */
+/* 能不能点亮、点亮后扣多少，只在这一处判断。
+   界面按钮的灰与不灰、点击时的拦截、测试里的断言，都走同一套。 */
+function canBuyTalent(t){
+  if(!t) return false;
+  if(META.talents.includes(t.id)) return false;
+  if(t.xcl && TALENTS.some(x=>x.xcl===t.xcl && META.talents.includes(x.id))) return false;
+  if(!t.req.every(x=>META.talents.includes(x))) return false;
+  if(META.renown < t.cost) return false;
+  return true;
+}
+function buyTalent(id){
+  const t = TALENTS.find(x=>x.id===id);
+  if(!t || !canBuyTalent(t)) return false;
+  META.renown -= t.cost;
+  META.talents.push(t.id);
+  saveMeta(META);
+  return true;
+}
+
 function renderTalents(){
   const m = META;
-  const rows = [0,1,2];
+  const rows = [0,1,2,3];
   const body = TALENT_BRANCHES.map(br=>{
     const list = TALENTS.filter(t=>t.b===br.id);
     const rowsHtml = rows.map(r=>{
       const items = list.filter(t=>t.row===r);
       return `<div class="trow ${items.length===2?'two':''}">${items.map(t=>{
         const owned = m.talents.includes(t.id);
-        const can = !owned && t.req.every(x=>m.talents.includes(x)) && m.renown >= t.cost;
+        /* 互斥：同一支线的终局只能选一条。选了另一条，这条就点不动了。 */
+        const blocked = !owned && t.xcl && TALENTS.some(x=>x.xcl===t.xcl && m.talents.includes(x.id));
+        const can = canBuyTalent(t);
         const cls = owned ? 'on' : (can ? '' : 'locked');
+        const costTxt = owned ? '已点亮' : (blocked ? '已选另一条' : t.cost + ' 声望');
         return `<button class="tnode ${cls}" data-t="${t.id}">
           <div class="tn">${t.name}</div>
           <div class="td">${t.desc}</div>
-          <div class="tc">${owned ? '已点亮' : t.cost + ' 声望'}</div>
+          <div class="tc">${costTxt}</div>
         </button>`;
       }).join('')}</div>`;
     }).join('');
@@ -6777,12 +6879,8 @@ function renderTalents(){
 
   document.querySelectorAll('.tnode').forEach(b=>{
     b.onclick = ()=>{
-      const t = TALENTS.find(x=>x.id===b.dataset.t);
-      if(!t || m.talents.includes(t.id)) return;
-      if(!t.req.every(x=>m.talents.includes(x)) || m.renown < t.cost) return;
-      m.renown -= t.cost;
-      m.talents.push(t.id);
-      saveMeta(m); META = m;
+      if(!buyTalent(b.dataset.t)) return;
+      META = m;
       renderTalents();
     };
   });
@@ -7145,7 +7243,7 @@ function enterNode(id){
     G.pending = null; render(); return;
   }
 
-  const ev = threadEvent(node) || companionMoment(node) || companionEvent(node) || pickEvent(node);
+  const ev = threadEvent(node) || companionFarewell(node) || companionMoment(node) || companionEvent(node) || pickEvent(node);
   if(!ev){
     G.screen = 'event';
     G.event = { id:'__empty', kicker:'途中', title:'一路无事', text:'这一段路走得平静。没有遇到什么，也没有失去什么。',
@@ -7258,6 +7356,8 @@ function chooseOption(o){
     if(G.rules && G.rules.firstBonus && G.firstCheck){
       bonus += 2; G.firstCheck = false;
     }
+    /* 死战：只剩一口气的时候，手反而稳。 */
+    if(G.rules && G.rules.lastStand && G.hp <= 1) bonus += 3;
     G.pending = { opt:o, checkBonus:bonus };
     G.screen = 'check'; render(); return;
   }
@@ -7307,6 +7407,15 @@ function chooseOption(o){
       }
     }
   }
+  if(o.companion === 'part' && G.companion){
+    const cdef = companionDef();
+    if(cdef){
+      G.companionLeft = { id:cdef.id, name:cdef.name, layer:G.layer + 1 };
+      pushEcho({ t:'companion', kind:'left', name:cdef.name });
+      addLog(cdef.name + '走了。');
+    }
+    G.companion = null;
+  }
   if(o.companionOpt && G.companion && G.companion.trust > 0){
     const cdef = companionDef();
     G.companion.trust--;
@@ -7314,10 +7423,9 @@ function chooseOption(o){
     addLog('同行 · ' + (cdef ? cdef.name : '他') + '搭了一手');
     pushEcho({ t:'companion', kind:'use', name:cdef ? cdef.name : '' });
     if(G.companion.trust <= 0 && cdef){
-      G.companionLeft = { id:cdef.id, name:cdef.name, layer:G.layer + 1 };
-      addLog(cdef.name + '走了。');
-      pushEcho({ t:'companion', kind:'left', name:cdef.name });
-      G.companion = null;
+      /* 用完最后一份信任，他不会当场消失 —— 下一程有一段告别，说完才走。 */
+      G.companion.pendingLeave = true;
+      addLog(cdef.name + '把手里剩下的东西放下了。');
     }
   }
   /* 闲事的余味：按选的那一条记下对应的一句，下一程挂在普通事件后面 */
@@ -7361,6 +7469,8 @@ function renderCheck(){
      旧存档里这个字段叫 riderBonus，一并兼容。 */
   const p = G.pending || {};
   let base = G.attrs[chk.attr] + (Number.isFinite(p.checkBonus) ? p.checkBonus : (p.riderBonus || 0));
+  /* 穷究：重掷不是重复，是把看过一遍的东西再看一遍。 */
+  if((G.rerolls || 0) > 0 && G.rules && G.rules.deepStudy) base += 2;
 
   app.innerHTML = topbar() + statbar() + `
     <div class="card event">
@@ -7494,8 +7604,14 @@ function settleCheck(tier, traitNote){
   /* 代价成功：抽一条代价 */
   let costInfo = null;
   if(tier === 'cost'){
-    costInfo = applyCost();
-    pushEcho({ t:'cost', once:true, title:G.event.title });
+    /* 赌徒：一半的机会，代价落不下来。用 seed 派生，同一颗种子结果一致。 */
+    const gRnd = mulberry32(hashStr(G.seed + '|cost|' + G.at + '|' + (G.event.id || '') + '|' + (G.rerolls || 0)));
+    if(!(G.rules && G.rules.gambler) || gRnd() >= 0.5){
+      costInfo = applyCost();
+      pushEcho({ t:'cost', once:true, title:G.event.title });
+    } else {
+      addLog('代价没有落下来。');
+    }
   }
 
   const tierTxt = { crit:'大成功', clean:'成功', cost:'代价成功', fail:'失败', fumble:'大失败' }[tier];
@@ -7700,7 +7816,9 @@ function endRun(kind){
     if(!(G.rules && G.rules.homeward)) renown = Math.floor(renown * 0.5);
     /* 回头要轻装：收好的先装进包，其余默认只带走一半；点亮「不退」才全带 */
     const full = !!(G.rules && G.rules.retreatFull);
-    kept = secured.concat(full ? loose : loose.slice(0, Math.ceil(loose.length / 2)));
+    /* 远行：回头路上多带得动一件。 */
+    const keepExtra = (G.rules && G.rules.farWalker) ? 1 : 0;
+    kept = secured.concat(full ? loose : loose.slice(0, Math.ceil(loose.length / 2) + keepExtra));
     mats = Math.floor(mats * 0.5);
   } else if(kind === 'shadow'){
     renown = Math.floor(renown * 0.2);

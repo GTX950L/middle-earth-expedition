@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.15，能完整玩通。', '版本号']
+    ['v0.16，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -1435,9 +1435,19 @@ section('⑭ 有个人跟你走了一段');
   vm.runInContext('G.event = __ev; G.layer = __layer; G.screen = "event";', ctx);
   callC('chooseOption', v2.options.find(o => o.companionOpt));
   g = getG();
-  if (g.companion) fail('信任用完没有离开');
-  if (!g.companionLeft || g.companionLeft.layer !== 7) fail('离开没有记录层数');
-  ok('搭手：每两个事件一次、四种资源各归各、两次用完即离开并记下第 7 程');
+  /* v0.16：用完最后一份信任不会当场消失，下一程有一段告别 */
+  if (!g.companion || !g.companion.pendingLeave) fail('信任用完之后没有进入告别状态');
+  if (g.companionLeft) fail('还没告别就离开了');
+
+  const fw = callC('companionFarewell', { id: 'n1', layer: 7, type: 'story', region: 'shire' });
+  if (!fw || !fw.options || fw.options.length !== 2) fail('信任用完没有告别事件');
+  ctx.__ev = fw; ctx.__layer = 7;
+  vm.runInContext('G.event = __ev; G.layer = __layer; G.screen = "event";', ctx);
+  callC('chooseOption', fw.options[0]);
+  g = getG();
+  if (g.companion) fail('告别之后没有离开');
+  if (!g.companionLeft || g.companionLeft.layer !== 8) fail('离开没有记录层数');
+  ok('搭手：每两个事件一次、四种资源各归各；信任用完进入告别，说完才离开并记下第 8 程');
 
   /* 14.6 结算三种落点 */
   let setN = 0;
@@ -1664,6 +1674,18 @@ section('⑯ v0.14：世界的记忆 / 同行者 / 行装 / 事迹');
   }
   ok("四名同行者各有专属事件，选项均为两条（问 / 不问）");
 
+  /* 16.6 告别：每个人都要有一段，且都只有两个选项 */
+  const FW = get("COMPANION_FAREWELL");
+  for (const c of CMS) {
+    if (!FW[c.id]) fail("同行者缺告别：" + c.id);
+    else {
+      if (!FW[c.id].text) fail("告别缺正文：" + c.id);
+      if (!FW[c.id].options || FW[c.id].options.length !== 2) fail("告别选项数不对：" + c.id);
+      if (!FW[c.id].options.every(o => o.companion === "part")) fail("告别选项没有标记离开：" + c.id);
+    }
+  }
+  ok("四名同行者各有一段告别，两个选项都会让他离开");
+
   /* 16.5 结算事迹：只在真的做到时出现 */
   const E = mk();
   E.run("META = defaultMeta()");
@@ -1743,6 +1765,61 @@ section('⑰ v0.15：多阶段事件 / 套装 / 事件扩容');
   }
   if (Object.keys(ITEMS).length < 30) fail("装备只有 " + Object.keys(ITEMS).length + " 件");
   ok("规模：夏尔 " + byR.shire + " / 布理 " + byR.bree + " / 荒野 " + byR.wild + " 条可抽取事件，装备 " + Object.keys(ITEMS).length + " 件");
+
+  /* 17.4 第四层：每条支线两个终局，只能选一个 */
+  const T3 = TALENTS.filter(t => t.row === 3);
+  if (T3.length !== 8) fail('第四层不是 8 个节点（' + T3.length + '）');
+  const groups = {};
+  T3.forEach(t => { if (t.xcl) groups[t.xcl] = (groups[t.xcl] || 0) + 1; });
+  if (Object.keys(groups).length !== 4) fail('互斥组不是 4 组');
+  for (const g in groups) if (groups[g] !== 2) fail('互斥组 ' + g + ' 不是两个');
+
+  const S = mkBox();
+  S.run("META = defaultMeta(); META.renown = 999; META.talents = ['v1','v2','v3','v4','v5','v6','v7']");
+  if (!S.call('buyTalent', 'v9')) fail('v9 死战应该能点亮');
+  if (S.call('buyTalent', 'v10')) fail('互斥没有拦住 v10 血勇');
+  if (S.call('canBuyTalent', TALENTS.find(t=>t.id==='v10'))) fail('canBuyTalent 没有识别互斥');
+  ok("第四层：8 个节点 / 4 组互斥，点亮一条之后另一条买不了");
+
+  /* 17.5 四条新规则真的接线 */
+  const L = mkBox();
+  L.run("META = defaultMeta(); META.talents = ['v1','v2','v3','v4','v5','v6','v7','v9']");
+  L.call('newGame', 'ranger', 1, 'LS-1');
+  L.run("G.hp = 1");
+  L.run("G.event = { id:'t', title:'t', type:'story', options:[{ label:'a', check:{attr:'valor',dc:10} }] }; G.screen = 'event';");
+  L.call('chooseOption', L.G().event.options[0]);
+  const lsBonus = L.G().pending && L.G().pending.checkBonus;
+  if (lsBonus !== 3) fail('死战没有给 +3（实际 ' + lsBonus + '）');
+
+  /* 远行：撤退时多带一件 */
+  const F = mkBox();
+  F.run("META = defaultMeta()");
+  F.call('newGame', 'ranger', 1, 'FW-1');
+  F.run("G.loot = [{id:'sword',plus:0},{id:'mail',plus:0},{id:'dagger',plus:0},{id:'ring',plus:0}]; G.layer = 10;");
+  F.call('endRun', 'retreat');
+  const keptNo = F.G().over.kept.length;
+  const F2 = mkBox();
+  F2.run("META = defaultMeta(); META.talents = ['r1','r3','r6','r9']");
+  F2.call('newGame', 'ranger', 1, 'FW-2');
+  F2.run("G.loot = [{id:'sword',plus:0},{id:'mail',plus:0},{id:'dagger',plus:0},{id:'ring',plus:0}]; G.layer = 10;");
+  F2.call('endRun', 'retreat');
+  const keptYes = F2.G().over.kept.length;
+  if (keptYes !== keptNo + 1) fail('远行没有多带一件（' + keptNo + ' → ' + keptYes + '）');
+
+  /* 赌徒：代价成功时有一半机会不落代价 */
+  let free = 0;
+  for (let i = 0; i < 24; i++) {
+    const Gb = mkBox();
+    Gb.run("META = defaultMeta(); META.talents = ['k1','k2','k3','k4','k6','k7','k9']");
+    Gb.call('newGame', 'ranger', 1, 'GAM-' + i);
+    Gb.run("G.event = { id:'x', title:'x', type:'story', options:[] }; G.pending = { opt: { label:'a', ok: { text:'ok' } } }; G.hp = 10;");
+    Gb.call('settleCheck', 'cost', '');
+    const lg = Gb.G().log || [];
+    if (lg.some(l => String(l).indexOf('代价没有落下来') >= 0)) free++;
+  }
+  if (free === 0) fail('赌徒 24 次代价里一次都没免过');
+  if (free >= 24) fail('赌徒每次都能免代价，概率不对');
+  ok("规则接线：死战 +3 / 远行多带一件 / 赌徒 24 次里免了 " + free + " 次");
 }
 
 section('⑱ 产物');
