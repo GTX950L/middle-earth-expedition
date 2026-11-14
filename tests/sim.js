@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.17，能完整玩通。', '版本号']
+    ['v0.18，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -845,7 +845,8 @@ section('⑧ 内容扩容与回响埋点');
     '阴影专用':  e => /^any_shadow_/.test(e.id),
     '多解障碍':  e => /^gate_(chain|wall)/.test(e.id),
     '凭证事件':  e => /^token_/.test(e.id),
-    '路上的闲事': e => e.group === 'idle'
+    '路上的闲事': e => e.group === 'idle',
+    '出身专属': e => !!(e.require && e.require.origin)
   };
   let neutralCount = 0;
   for (const [name, pred] of Object.entries(groups)) {
@@ -857,7 +858,7 @@ section('⑧ 内容扩容与回响埋点');
   const anyCount = EVENTS.filter(e => e.region === 'any').length;
   if (keys.length + neutralCount !== anyCount) fail('通用池分类不闭合：' + keys.length + ' + ' + neutralCount + ' ≠ ' + anyCount);
   ok('地区版 ' + keys.length + ' 条 × 3 = ' + keys.length * 3 + ' 段；其余 ' + neutralCount +
-     ' 条按设计不写地区版（独白 / 阴影 / 多解障碍 / 凭证 / 闲事），分类闭合');
+     ' 条按设计不写地区版（独白 / 阴影 / 多解障碍 / 凭证 / 闲事 / 出身专属），分类闭合');
 
   /* 新补的 3 条地区版：三地正文确实不同，且原事件不被改写 */
   const probe = EVENTS.find(e => e.id === 'any_cleanse_water');
@@ -1852,6 +1853,44 @@ section('⑰ v0.15：多阶段事件 / 套装 / 事件扩容');
   const label = Ox.call("needLabel", { origin: 'dwarf' });
   if (label.indexOf('需要') < 0 || label.indexOf('矮人') < 0) fail('灰字提示没写出「需要：矮人」（实际 ' + label + '）');
   ok("出身专属选项：12 个出身各 2 条，" + checkedSelf + " 条只有本人能用，别的出身为 0，灰字提示正确");
+
+  /* 17.7 出身专属事件：12 条，只有这个出身能抽到 */
+  const originEv = EVENTS.filter(e => e.require && e.require.origin);
+  if (originEv.length !== 12) fail('出身专属事件不是 12 条（' + originEv.length + '）');
+  for (const e of originEv) {
+    if (HIDS.indexOf(e.require.origin) < 0) fail('出身专属事件指向不存在的出身：' + e.id + ' → ' + e.require.origin);
+    if (!TEXTS[e.id]) fail('出身专属事件缺正文：' + e.id);
+    if (TEXTS[e.id] && TEXTS[e.id].opts && TEXTS[e.id].opts.length !== e.options.length)
+      fail('出身专属事件正文与选项数不符：' + e.id);
+  }
+  const originKinds = {};
+  for (const e of originEv) originKinds[e.require.origin] = (originKinds[e.require.origin] || 0) + 1;
+  for (const id of HIDS) if ((originKinds[id] || 0) !== 1)
+    fail('出身 ' + id + ' 的专属事件有 ' + (originKinds[id] || 0) + ' 条（应恰好 1 条）');
+
+  /* 抽 500 次，非对应出身一条也不该遇到，对应出身至少遇到一次 */
+  const Ex = mkBox();
+  for (const hid of ["ranger", "dwarf", "watcher"]) {
+    Ex.run('META = defaultMeta()');
+    Ex.call('newGame', hid, 1, 'OE-' + hid);
+    /* camp / story 节点会先被独白和闲事占走，这里把它们用完，直接测普通池 */
+    Ex.run('G.groupCount = { idle: 2, solitude: 2 }');
+    let leak = 0, own = 0;
+    for (let i = 0; i < 170; i++) {
+      for (const reg of ['shire', 'bree', 'wild']) {
+        for (const tp of ['story', 'encounter', 'camp']) {
+          const ev = Ex.call('pickEvent', { id: 'oe' + i + reg + tp, layer: 6, type: tp, region: reg });
+          if (ev && ev.require && ev.require.origin) {
+            if (ev.require.origin === hid) own++;
+            else leak++;
+          }
+        }
+      }
+    }
+    if (leak) fail(hid + ' 抽到了别人的专属事件 ' + leak + ' 次');
+    if (!own) fail(hid + ' 抽不到自己的专属事件');
+  }
+  ok("出身专属事件：12 条各归各，三个出身各抽 1530 次，别人的一次没来，自己的都来了");
 }
 
 section('⑱ 产物');

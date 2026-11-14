@@ -337,7 +337,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.17
+   中土远征 v0.18
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -3115,6 +3115,156 @@ const EVENTS = [
       { label:'捂住耳朵，快走', check:{attr:'cunning',dc:11},
         ok:{ text:'走出一段，铃声没了。你松开手，还是没有。', fx:{hp:-1} },
         no:{ text:'铃声一直跟着，直到你跑起来。', fx:{hp:-2,supply:-1} } }
+    ] },
+
+  /* ===== v0.18：只有这个出身才会遇上的事 ===== */
+
+  { id:'track_signs', region:'shire', type:'encounter', weight:15, require:{origin:'ranger'},
+    title:'折断的树枝',
+    text:'路边一根树枝被折断了，断口朝东，挂在齐胸高的地方。\n\n再往前二十步，又有一根，朝同一个方向。\n\n折的时候没有用刀，是用手掰的。',
+    options:[
+      { label:'顺着标记走', fx:{renown:3,supply:2},
+        ok:{ text:'标记每隔二十步一根，一直通到一片矮树林。林子中间有一块空地，地上有灰。' } },
+      { label:'看断口的新旧', check:{attr:'cunning',dc:11},
+        ok:{ text:'最前面几根是旧的，后面的越来越新。做标记的人刚走不久。', fx:{renown:3,flag:{track_fresh:true}} },
+        no:{ text:'断口都差不多，看不出先后。', fx:{} } },
+      { label:'不跟，走自己的路', fx:{}, ok:{ text:'你从标记旁边走过去。走了半里，路边的树枝又出现了，方向还是东。' } }
+    ] },
+
+  { id:'old_post', region:'wild', type:'encounter', weight:14, require:{origin:'warden'},
+    title:'半塌的哨位',
+    text:'山坡上有一处石砌的矮墙，塌了一半。墙后面能站三四个人，正好背风。\n\n墙的位置很好：能看见下面的路，路上看不见这里。',
+    options:[
+      { label:'进哨位歇脚', fx:{hp:2,resolve:1},
+        ok:{ text:'墙根下有一块被坐平的土。你坐下来，风从墙顶过去。' } },
+      { label:'看墙是怎么砌的', check:{attr:'lore',dc:11},
+        ok:{ text:'石头是干砌的，没有灰浆，全凭咬合。砌的人懂行——这是守军的做法。', fx:{renown:3,flag:{post_built:true}} },
+        no:{ text:'墙塌得太厉害，看不出砌法。', fx:{} } },
+      { label:'不进去，绕着走', fx:{}, ok:{ text:'你从坡下绕过去。抬头看，墙还立在那儿。' } }
+    ] },
+
+  { id:'wet_book', region:'any', type:'story', weight:13, require:{origin:'lore'},
+    title:'石头下的书',
+    text:'路边的石头下面压着一本书，被雨泡过，纸都粘在一起。\n\n封皮上没有字，只有一个压出来的印。',
+    options:[
+      { label:'小心地一页页分开', check:{attr:'cunning',dc:12},
+        ok:{ text:'能看清的只剩几页。是一本账，记的是某一年的收成，字写得很小。', fx:{renown:4,flag:{book_read:true}} },
+        no:{ text:'纸一碰就碎。你收手的时候，掌心全是纸屑。', fx:{resolve:-1} } },
+      { label:'看封皮上的印', check:{attr:'lore',dc:11},
+        ok:{ text:'印是某个书房的藏书印。这个书房二十年前就散了。', fx:{renown:3,material:1} },
+        no:{ text:'印被泡得看不清了。', fx:{} } },
+      { label:'放回去', fx:{}, ok:{ text:'你把书压回石头下面，压得比原来更实。' } }
+    ] },
+
+  { id:'mine_mouth', region:'wild', type:'encounter', weight:14, require:{origin:'dwarf'},
+    title:'堵住的矿道',
+    text:'山脚下有一堆石头，堆得很齐整，不像塌方。\n\n石头后面是一个洞口，洞口上面有一道横梁，木头已经朽了，但还架着。',
+    options:[
+      { label:'把石头搬开', check:{attr:'valor',dc:13},
+        ok:{ text:'搬了半个时辰，露出一个人宽的入口。里面很干，风从里面出来。', fx:{hp:-1,renown:3,material:3,item:'axe'} },
+        no:{ text:'搬到一半，上面的石头滑下来，砸在腿上。', fx:{hp:-3} } },
+      { label:'看横梁是怎么架的', check:{attr:'lore',dc:11},
+        ok:{ text:'横梁的榫口朝里，是矿工的做法。堵洞的人不是想让洞塌，是想让人以为它塌了。', fx:{renown:4,shadow:1,flag:{mine_sealed:true}} },
+        no:{ text:'木头朽得厉害，看不出榫口。', fx:{} } },
+      { label:'不搬，继续走', fx:{}, ok:{ text:'你从洞口前面走过去。风一直吹到路上。' } }
+    ] },
+
+  { id:'singing_tree', region:'wild', type:'story', weight:14, require:{origin:'elf'},
+    title:'还在唱的树',
+    text:'一棵树，很粗，树皮上有一道很长的口子，口子已经长好了，留下一道白。\n\n声音是从树里出来的，很低，听不清词。',
+    options:[
+      { label:'把手按在树干上', fx:{resolve:2,renown:3,flag:{tree_touch:true}},
+        ok:{ text:'声音停了一下，然后继续。你的手心里有一点麻，像有人在很远的地方念你的名字。' } },
+      { label:'听它在唱什么', check:{attr:'spirit',dc:12},
+        ok:{ text:'它在数。数的是有人从这条路上经过的次数。数字很大，它还在数。', fx:{renown:4,shadow:1} },
+        no:{ text:'你听了很久，只听见风。', fx:{} } },
+      { label:'走开', fx:{}, ok:{ text:'你走开。声音跟着你走了一段，然后停了。' } }
+    ] },
+
+  { id:'loose_horse', region:'bree', type:'encounter', weight:14, require:{origin:'rider'},
+    title:'无主的马',
+    text:'路边站着一匹马，鞍还在，缰绳拖在地上。\n\n它看见你，没有动，也没有走开。它的左前蹄一直在刨地。',
+    options:[
+      { label:'过去拉住缰绳', fx:{renown:3,supply:2,flag:{horse_found:true}},
+        ok:{ text:'它让你拉。鞍上没有行李，只有一根断了的带子。' } },
+      { label:'看它为什么刨地', check:{attr:'cunning',dc:11},
+        ok:{ text:'它前蹄下面的土是松的。你用手扒开，下面压着一只袋子。', fx:{renown:3,material:2} },
+        no:{ text:'土被刨乱了，看不出什么。', fx:{} } },
+      { label:'不碰，走过去', fx:{}, ok:{ text:'你走过去。它在你身后叫了一声，很长。' } }
+    ] },
+
+  { id:'kin_far', region:'shire', type:'story', weight:15, require:{origin:'hobbit'},
+    title:'同乡',
+    text:'路边坐着一个矮个子，正在吃一块面包。他看见你，先看你的脚，再看你的脸。\n\n「你也是从西边来的？」他问。',
+    options:[
+      { label:'坐下来跟他一起吃', fx:{supply:2,resolve:2},
+        ok:{ text:'他把面包掰了一半给你。他说他往东走了三个月，还没走到头。' } },
+      { label:'问他要往哪去', check:{attr:'spirit',dc:11},
+        ok:{ text:'他说了一个地名，是夏尔东边的一个村子。那个村子去年就没人了。', fx:{renown:3,shadow:1} },
+        no:{ text:'他笑了笑，没有说。', fx:{} } },
+      { label:'点点头，继续走', fx:{}, ok:{ text:'你点点头。他在后面说了句什么，风把话吹走了。' } }
+    ] },
+
+  { id:'blank_stone', region:'any', type:'story', weight:13, require:{origin:'nameless'},
+    title:'没有字的碑',
+    text:'路边立着一块石碑，碑面是平的，一个字也没有。\n\n碑的下半截埋在土里，露出来的部分被摸得很光。',
+    options:[
+      { label:'把手放在碑面上', fx:{resolve:3},
+        ok:{ text:'石头是凉的。你站了一会儿，觉得这样也好。' } },
+      { label:'看碑的形制', check:{attr:'lore',dc:11},
+        ok:{ text:'这是块备用的碑。刻字的人还没来，或者不打算来了。', fx:{renown:3,flag:{stone_blank:true}} },
+        no:{ text:'碑面太光，什么也没留下。', fx:{} } },
+      { label:'走开', fx:{}, ok:{ text:'你走开。碑还立在那儿。' } }
+    ] },
+
+  { id:'crossroad_friend', region:'bree', type:'story', weight:14, require:{origin:'bree'},
+    title:'朝你点头的人',
+    text:'路口有个人朝你点头，像是认识你。\n\n你想不起来他是谁。他穿着一件旧外套，袖口磨破了。',
+    options:[
+      { label:'也点头，等他自己说', check:{attr:'spirit',dc:11},
+        ok:{ text:'他走过来，说他是你父亲那一辈的人。「你长得像他。」他说。', fx:{resolve:2,renown:3} },
+        no:{ text:'他点点头就走了。你回头看了两次。', fx:{} } },
+      { label:'直接问他叫什么', check:{attr:'cunning',dc:11},
+        ok:{ text:'他报了一个名字，你不认得。他说不要紧，他认得你就行。', fx:{renown:2,supply:1} },
+        no:{ text:'他摆摆手，说算了。', fx:{} } },
+      { label:'装作没看见', fx:{}, ok:{ text:'你低头走过去。他没有再叫你。' } }
+    ] },
+
+  { id:'unfinished_blade', region:'any', type:'story', weight:13, require:{origin:'smith'},
+    title:'没打完的刀',
+    text:'一间塌了的屋子，灶台还在。灶台边上放着一把没打完的刀，刀身已经有了形，还没有开刃。\n\n刀旁边是锤子，锤柄断了。',
+    options:[
+      { label:'把刀打完', check:{attr:'valor',dc:12},
+        ok:{ text:'你生了火，找到一块能用的石头当砧。打到天黑，刃开了。', fx:{hp:-1,renown:4,item:'dagger'} },
+        no:{ text:'火不够旺，钢始终软。你打到半夜，停了。', fx:{hp:-2,supply:-1} } },
+      { label:'看刀身的火候', check:{attr:'lore',dc:11},
+        ok:{ text:'淬火淬早了，钢里有裂。这把刀打不完不是手艺的问题——料子本来就不够。', fx:{renown:3,material:2} },
+        no:{ text:'屋里太暗，看不清刀身。', fx:{} } },
+      { label:'放下锤子', fx:{}, ok:{ text:'你把锤子摆回原来的位置。' } }
+    ] },
+
+  { id:'no_address', region:'any', type:'story', weight:13, require:{origin:'courier'},
+    title:'没有地址的信',
+    text:'路边的石头下压着一封信，信封上只写了一个名字，没有地址。\n\n封口没有粘，也没有封蜡。',
+    options:[
+      { label:'拆开看', check:{attr:'cunning',dc:11},
+        ok:{ text:'里面只有一句话：「我在东边等你，等到叶子落完。」没有署名。', fx:{renown:3,shadow:1,flag:{letter_open:true}} },
+        no:{ text:'纸粘住了，一撕就破。', fx:{resolve:-1} } },
+      { label:'带着，路上问人', fx:{renown:4,supply:-1,flag:{letter_ask:true}},
+        ok:{ text:'你问了七个人。第七个人说这个名字他听过，在布理。' } },
+      { label:'放回去', fx:{}, ok:{ text:'你把信压回石头下面，压得比原来更实。' } }
+    ] },
+
+  { id:'night_watch', region:'any', type:'encounter', weight:13, require:{origin:'watcher'},
+    title:'换岗的人',
+    text:'火边坐着一个人，裹着斗篷，背对着你。\n\n他听见你，说：「你来得正好。我守了半夜，该换人了。」\n\n他说话的时候没有回头。',
+    options:[
+      { label:'坐下来，接他的班', fx:{hp:-2,resolve:3,renown:3},
+        ok:{ text:'你坐到天亮。他睡得很沉。天亮时他不在了，火边留着一块饼。' } },
+      { label:'问他守的是什么', check:{attr:'spirit',dc:12},
+        ok:{ text:'他说守的是「别让东西过去」。问什么东西，他说你没看见就对了。', fx:{renown:3,shadow:1} },
+        no:{ text:'他没有再说话，往火里添了一根柴。', fx:{} } },
+      { label:'不接，走开', fx:{}, ok:{ text:'你走开。他没有说话，也没有回头。' } }
     ] }
 
 ];
@@ -3422,6 +3572,128 @@ function regionVariant(ev, region){
 }
 
 const TEXTS = {};
+
+/* ===== v0.18：出身专属事件正文 ===== */
+TEXTS.track_signs = {
+  title: '折断的树枝',
+  text: '路边一根树枝被折断了，断口朝东，挂在齐胸高的地方，走路的人一抬头就能看见。\n\n再往前二十步，又有一根，朝同一个方向。\n\n折的时候没有用刀，是用手掰的。掰的人手劲很大，一次就断。',
+  opts: [
+    { ok: '标记每隔二十步一根，一直通到一片矮树林。\n\n林子中间有一块空地，地上的灰是新的，火堆边上还有几个脚印，都朝里。' },
+    { ok: '最前面几根是旧的，断口发黑；后面的越来越新，最后几根还带着绿。\n\n做标记的人刚走不久，可能就在半天的路前面。', no: '断口都差不多，看不出先后。\n\n风把最后几根吹得转了个方向。' },
+    { ok: '你从标记旁边走过去。\n\n走了半里，路边的树枝又出现了，方向还是东。' }
+  ]
+};
+
+TEXTS.old_post = {
+  title: '半塌的哨位',
+  text: '山坡上有一处石砌的矮墙，塌了一半。墙后面能站三四个人，正好背风。\n\n墙的位置很好：能看见下面的路，路上看不见这里。\n\n墙根下有一块被坐平的土。',
+  opts: [
+    { ok: '你坐下来，风从墙顶过去。\n\n这是这一路第一次坐着的时候不用回头。' },
+    { ok: '石头是干砌的，没有灰浆，全凭咬合。\n\n砌的人懂行——这是守军的做法，不是农户随手垒的。', no: '墙塌得太厉害，看不出砌法。\n\n你搬开两块，下面只有土。' },
+    { ok: '你从坡下绕过去。\n\n抬头看，墙还立在那儿，塌的那一半朝着路。' }
+  ]
+};
+
+TEXTS.wet_book = {
+  title: '石头下的书',
+  text: '路边的石头下面压着一本书，被雨泡过，纸都粘在一起。\n\n封皮上没有字，只有一个压出来的印。\n\n书很沉，比同样厚的书沉。',
+  opts: [
+    { ok: '能看清的只剩几页。是一本账，记的是某一年的收成，字写得很小。\n\n最后一页只有一行：今年不够。', no: '纸一碰就碎。\n\n你收手的时候，掌心全是纸屑。' },
+    { ok: '印是某个书房的藏书印，边角有一个小小的缺口。\n\n这个书房二十年前就散了。', no: '印被泡得看不清了。\n\n你把它凑到眼前，只看出一个圆的轮廓。' },
+    { ok: '你把书压回石头下面，压得比原来更实。\n\n走出几步，回头看，石头还在原来的位置。' }
+  ]
+};
+
+TEXTS.mine_mouth = {
+  title: '堵住的矿道',
+  text: '山脚下有一堆石头，堆得很齐整，不像塌方。\n\n石头后面是一个洞口，洞口上面有一道横梁，木头已经朽了，但还架着。\n\n风从石缝里出来，是干的。',
+  opts: [
+    { ok: '搬了半个时辰，露出一个人宽的入口。\n\n里面很干，风从里面出来，带着一点铁锈味。', no: '搬到一半，上面的石头滑下来，砸在腿上。\n\n你坐在石堆边，等疼过去。' },
+    { ok: '横梁的榫口朝里，是矿工的做法。\n\n堵洞的人不是想让洞塌，是想让人以为它塌了。', no: '木头朽得厉害，看不出榫口。' },
+    { ok: '你从洞口前面走过去。\n\n风一直吹到路上，比别处的风凉。' }
+  ]
+};
+
+TEXTS.singing_tree = {
+  title: '还在唱的树',
+  text: '一棵树，很粗，树皮上有一道很长的口子，口子已经长好了，留下一道白。\n\n声音是从树里出来的，很低，听不清词。\n\n你站着不动的时候，它的调子也慢下来。',
+  opts: [
+    { ok: '声音停了一下，然后继续。\n\n你的手心里有一点麻，像有人在很远的地方念你的名字。' },
+    { ok: '它在数。数的是有人从这条路上经过的次数。\n\n数字很大，它还在数。', no: '你听了很久，只听见风。\n\n风一停，声音也没了。' },
+    { ok: '你走开。\n\n声音跟着你走了一段，然后停了。' }
+  ]
+};
+
+TEXTS.loose_horse = {
+  title: '无主的马',
+  text: '路边站着一匹马，鞍还在，缰绳拖在地上。\n\n它看见你，没有动，也没有走开。它的左前蹄一直在刨地，刨出一个浅坑。\n\n鞍是旧的，但保养得很好。',
+  opts: [
+    { ok: '它让你拉。\n\n鞍上没有行李，只有一根断了的带子，断口是新的。' },
+    { ok: '它前蹄下面的土是松的。你用手扒开，下面压着一只袋子。\n\n袋子里是硬东西，裹着布。', no: '土被刨乱了，什么也没有。\n\n马看了你一会儿，把头转开。' },
+    { ok: '你走过去。\n\n它在你身后叫了一声，很长。' }
+  ]
+};
+
+TEXTS.kin_far = {
+  title: '同乡',
+  text: '路边坐着一个矮个子，正在吃一块面包。他看见你，先看你的脚，再看你的脸。\n\n「你也是从西边来的？」他问。\n\n他说话的口音，和你家里的一样。',
+  opts: [
+    { ok: '他把面包掰了一半给你。\n\n他说他往东走了三个月，还没走到头。「路比地图上长。」他说。' },
+    { ok: '他说了一个地名，是夏尔东边的一个村子。\n\n那个村子去年就没人了。他大概是还不知道。', no: '他笑了笑，没有说。\n\n他把剩下的面包收进怀里。' },
+    { ok: '你点点头。\n\n他在后面说了句什么，风把话吹走了。' }
+  ]
+};
+
+TEXTS.blank_stone = {
+  title: '没有字的碑',
+  text: '路边立着一块石碑，碑面是平的，一个字也没有。\n\n碑的下半截埋在土里，露出来的部分被摸得很光。\n\n碑的朝向是东。',
+  opts: [
+    { ok: '石头是凉的。\n\n你站了一会儿，觉得这样也好。' },
+    { ok: '这是块备用的碑。刻字的人还没来，或者不打算来了。', no: '碑面太光，什么也没留下。\n\n你摸了一遍，只有石头本身。' },
+    { ok: '你走开。\n\n碑还立在那儿，朝着东。' }
+  ]
+};
+
+TEXTS.crossroad_friend = {
+  title: '朝你点头的人',
+  text: '路口有个人朝你点头，像是认识你。\n\n你想不起来他是谁。他穿着一件旧外套，袖口磨破了，但扣子都扣着。\n\n他没有走过来，只是站在那儿。',
+  opts: [
+    { ok: '他走过来，说他是你父亲那一辈的人。\n\n「你长得像他。」他说，「走路的样子也像。」', no: '他点点头就走了。\n\n你回头看了两次，第二次他已经在人群里了。' },
+    { ok: '他报了一个名字，你不认得。\n\n他说不要紧，他认得你就行。', no: '他摆摆手，说算了。\n\n他转身进了旁边的一条巷子。' },
+    { ok: '你低头走过去。\n\n他没有再叫你。' }
+  ]
+};
+
+TEXTS.unfinished_blade = {
+  title: '没打完的刀',
+  text: '一间塌了的屋子，灶台还在。灶台边上放着一把没打完的刀，刀身已经有了形，还没有开刃。\n\n刀旁边是锤子，锤柄断了。\n\n灶膛里还有没烧完的炭。',
+  opts: [
+    { ok: '你生了火，找到一块能用的石头当砧。\n\n打到天黑，刃开了。刀不漂亮，但能用。', no: '火不够旺，钢始终软。\n\n你打到半夜，停了。' },
+    { ok: '淬火淬早了，钢里有裂。\n\n这把刀打不完不是手艺的问题——料子本来就不够。', no: '屋里太暗，看不清刀身。' },
+    { ok: '你把锤子摆回原来的位置。\n\n出门的时候，炭还红着。' }
+  ]
+};
+
+TEXTS.no_address = {
+  title: '没有地址的信',
+  text: '路边的石头下压着一封信，信封上只写了一个名字，没有地址。\n\n封口没有粘，也没有封蜡。\n\n信角被雨打湿过，又干了，纸有点皱。',
+  opts: [
+    { ok: '里面只有一句话：「我在东边等你，等到叶子落完。」\n\n没有署名。', no: '纸粘住了，一撕就破。\n\n你捏着那半张，看了很久，什么也没看懂。' },
+    { ok: '你问了七个人。\n\n第七个人说这个名字他听过，在布理，是个开客栈的。' },
+    { ok: '你把信压回石头下面，压得比原来更实。' }
+  ]
+};
+
+TEXTS.night_watch = {
+  title: '换岗的人',
+  text: '火边坐着一个人，裹着斗篷，背对着你。\n\n他听见你，说：「你来得正好。我守了半夜，该换人了。」\n\n他说话的时候没有回头。火很小，只够照亮他一个人。',
+  opts: [
+    { ok: '你坐到天亮。他睡得很沉，一次也没有翻身。\n\n天亮时他不在了，火边留着一块饼。' },
+    { ok: '他说守的是「别让东西过去」。\n\n问什么东西，他说你没看见就对了。', no: '他没有再说话，往火里添了一根柴。' },
+    { ok: '你走开。\n\n他没有说话，也没有回头。' }
+  ]
+};
+
 
 /* ===== v0.15：地区事件扩容正文 ===== */
 TEXTS.shire_dyke = {
@@ -6289,6 +6561,8 @@ function pickEvent(node){
       if(e.require.noVow && G.vow) return false;
       if(e.require.flag && !G.flags[e.require.flag]) return false;
       if(e.require.notFlag && G.flags[e.require.notFlag]) return false;
+      /* 出身专属事件：只有这个出身能遇上 */
+      if(e.require.origin && (!G.hero || G.hero.id !== e.require.origin)) return false;
     }
     if(cat==='treasure') return e.type==='treasure';
     return e.type === cat;
@@ -6642,7 +6916,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.17</div>
+    <div class="eyebrow">文字跑团 · v0.18</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十五程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
