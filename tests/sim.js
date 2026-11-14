@@ -169,7 +169,7 @@ section('① 数据完整性');
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
     ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.16，能完整玩通。', '版本号']
+    ['v0.17，能完整玩通。', '版本号']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
@@ -1820,6 +1820,38 @@ section('⑰ v0.15：多阶段事件 / 套装 / 事件扩容');
   if (free === 0) fail('赌徒 24 次代价里一次都没免过');
   if (free >= 24) fail('赌徒每次都能免代价，概率不对');
   ok("规则接线：死战 +3 / 远行多带一件 / 赌徒 24 次里免了 " + free + " 次");
+
+  /* 17.6 出身专属选项：每个出身 2 条，只有他自己能选 */
+  const byOrigin = {};
+  EVENTS.forEach(e => e.options.forEach(o => {
+    if (o.need && o.need.origin) byOrigin[o.need.origin] = (byOrigin[o.need.origin] || 0) + 1;
+  }));
+  const HIDS = HEROES.map(h => h.id);
+  for (const id of HIDS) {
+    if ((byOrigin[id] || 0) < 2) fail('出身 ' + id + ' 的专属选项只有 ' + (byOrigin[id] || 0) + ' 条（应 ≥2）');
+  }
+  const Ox = mkBox();
+  let checkedSelf = 0;
+  for (const id of HIDS) {
+    Ox.run("META = defaultMeta()");
+    Ox.call('newGame', id, 1, 'OR-' + id);
+    EVENTS.forEach(e => e.options.forEach(o => {
+      if (o.need && o.need.origin === id) {
+        if (!Ox.call('hasNeed', o.need)) fail(id + ' 用不了自己的专属选项：' + e.id);
+        checkedSelf++;
+      }
+    }));
+  }
+  Ox.run('META = defaultMeta()');
+  Ox.call('newGame', 'nameless', 1, 'OR-neg');
+  let leaked = 0;
+  EVENTS.forEach(e => e.options.forEach(o => {
+    if (o.need && o.need.origin && o.need.origin !== 'nameless' && Ox.call('hasNeed', o.need)) leaked++;
+  }));
+  if (leaked) fail('别的出身也能用 ' + leaked + ' 条专属选项');
+  const label = Ox.call("needLabel", { origin: 'dwarf' });
+  if (label.indexOf('需要') < 0 || label.indexOf('矮人') < 0) fail('灰字提示没写出「需要：矮人」（实际 ' + label + '）');
+  ok("出身专属选项：12 个出身各 2 条，" + checkedSelf + " 条只有本人能用，别的出身为 0，灰字提示正确");
 }
 
 section('⑱ 产物');
