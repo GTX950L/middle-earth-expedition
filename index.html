@@ -351,7 +351,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.18
+   中土远征 v0.19
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -5868,7 +5868,7 @@ function newGame(heroId, tierId, seed){
     standUsed:false, luckUsed:false, firstCheck:true,
     freeRerolls: (tf.rules.extraReroll || hero.rule === 'extraReroll') ? 1 : 0, eventCount:0,
     steadyLeft:STEADY_LIMIT + (tf.rules.steadyExtra ? 1 : 0), shadowResistUsed:false,
-    shadowGuardUsed:false, secLeft:SEC_LIMIT,
+    shadowGuardUsed:false, shadowBailUsed:false, secLeft:SEC_LIMIT,
     renown:0, materials:0, over:null, packBonus:pb,
     campHalf: !!mods.campHalf, dcBonus: mods.dc||0, supplyDrain: mods.supplyDrain||0, dmgBonus: mods.dmg||0,
     hunt: !!mods.hunt, noRetreat: !!mods.noRetreat, finalDC: mods.finalDC||0,
@@ -6936,7 +6936,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.18</div>
+    <div class="eyebrow">文字跑团 · v0.19</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十五程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
@@ -7996,12 +7996,43 @@ function showRollActions(tier, traitNote){
   acc.textContent = ok ? (tier === 'cost' ? '接受这个结果' : '继续') : '接受这个结果';
   acc.onclick = ()=> settleCheck(tier, traitNote);
   acts.appendChild(acc);
+  /* 深阴影的保命牌。
+     它只在「这一次失败可能直接要命」的时候出现（血 ≤3 且有阴影在身）。
+     不是随时能掏的万能钥匙：数据上无条件可用的版本会让通关率掉 8 个点 ——
+     玩家会拿它去擦小事，而 +1 阴影比一次失败更贵。 */
+  if(!ok && !G.shadowBailUsed && (G.shadow || 0) >= 3 && G.hp <= 3){
+    const next = (G.shadow || 0) + 1;
+    const bail = document.createElement('button');
+    bail.className = 'btn sm';
+    bail.textContent = '让那个东西做完 · 阴影 +1' + (next >= SHADOW_MAX ? '（到 ' + SHADOW_MAX + ' 就是终点）' : '');
+    bail.onclick = ()=> bailOut();
+    acts.appendChild(bail);
+  }
   document.querySelector('.rollbox').appendChild(acts);
+}
+
+/* 它替你把这一次做完：改判为代价成功。
+   代价照样落在你身上 —— 它做完就走，账记在你这一栏。 */
+function bailOut(){
+  if(!G || G.shadowBailUsed) return;
+  G.shadowBailUsed = true;
+  G.shadow = (G.shadow || 0) + 1;
+  G.bailNote = '你没有再抬手。\n\n事情在你让开的那一步里自己结束了。它做得很好，干净得不像你做的。你没有看。';
+  pushEcho({ t:'bail', once:true, title:G.event.title });
+  addLog('让那个东西做完 · 阴影 +1');
+  const rr = $('rollRes');
+  if(rr){ rr.textContent = '代价成功'; rr.className = 'res cost'; }
+  const rd = $('rollDetail');
+  if(rd) rd.textContent = rd.textContent + ' · 它替你做完了';
+  settleCheck('cost', '它的手');
 }
 
 function settleCheck(tier, traitNote){
   const ok = (tier === 'crit' || tier === 'clean' || tier === 'cost');
   const o = G.pending.opt;
+  /* 「让它做完」那一句只接在这一件事的结果里，读完就清掉 */
+  const bailNote = G.bailNote || '';
+  G.bailNote = '';
   const branch = (ok ? o.ok : o.no) || {};
   if(!ok) pushEcho({ t:'fail', title:G.event.title, label:o.label });
 
@@ -8074,7 +8105,7 @@ function settleCheck(tier, traitNote){
   G.event = {
     id: 'r_L' + G.layer + '_' + G.at,
     title: t, type: ty,
-    text: (branch.text || '你继续上路。') + (costInfo ? '\n\n' + costInfo.text : ''),
+    text: (branch.text || '你继续上路。') + (costInfo ? '\n\n' + costInfo.text : '') + (bailNote ? '\n\n' + bailNote : ''),
     options: [{ label:'继续', free:true }],
     fxOut: changes
   };
@@ -8100,6 +8131,7 @@ function buildEcho(kind, reached){
   const region = last('region'), reframe = first('reframe');
   const taken = first('taken'), cost = first('cost'), reroll = first('reroll');
   const steady = first('steady'), resist = first('resist'), secured = first('secure');
+  const bail = first('bail');
   const th = G && G.thread, thDef = (typeof threadDef === 'function') ? threadDef() : null;
   /* 同行者与私事分开算：他的落点句也要进回响，但不能盖过这一局真正的大事 */
   let compEcho = '', compLayer = 3;
@@ -8140,10 +8172,10 @@ function buildEcho(kind, reached){
      结局会抬高相关痕迹的权重 —— 倒下的人记得那次没成，
      堕入阴影的人记得第一条被划掉的路。 */
   const bias = {
-    dead:    { fail:3, gear:2, hurt:1, cost:1 },
-    shadow:  { taken:4, stage:3, resist:3, reframe:1 },
+    dead:    { fail:3, gear:2, hurt:1, cost:1, bail:2 },
+    shadow:  { taken:4, stage:3, resist:3, reframe:1, bail:5 },
     retreat: { region:3, letter:2, reroll:1 },
-    win:     { vow:3, resist:3, reframe:2, region:1 }
+    win:     { vow:3, resist:3, reframe:2, region:1, bail:2 }
   }[kind] || {};
   const pool = [];
   const add = (type, base, e, s) => {
@@ -8179,6 +8211,9 @@ function buildEcho(kind, reached){
       ? '「' + firstBreak.name + '」是第 ' + pick.layer + ' 程捡的，第 ' + firstBreak.layer + ' 程' + verb
       : '「' + firstBreak.name + '」是第 ' + firstBreak.layer + ' 程' + verb);
   }
+  if(bail) add('bail', 9, bail,
+    '第 ' + bail.layer + ' 程，那一次你没有再抬手。事情是它做完的，干净得不像你做的。'
+    + (kind === 'shadow' ? '后来你想，也许就是从那天起，你开始习惯让它来。' : '做完之后你还是继续走了。'));
   if(reframe) add('reframe', 8, reframe,
     '第 ' + reframe.layer + ' 程，「' + reframe.title + '」，你蹲下来看清了一处。后来那道题就不在了。');
   if(gotToken) add('token', 7, gotToken, usedToken
@@ -8470,6 +8505,8 @@ function loadRun(){
     if(!Number.isFinite(d.steadyLeft)) d.steadyLeft = STEADY_LIMIT;
     if(typeof d.shadowResistUsed !== 'boolean') d.shadowResistUsed = false;
     if(typeof d.shadowGuardUsed !== 'boolean') d.shadowGuardUsed = false;
+    /* 「让它做完」是后加的，旧档没有这一项，按没用过处理 */
+    if(typeof d.shadowBailUsed !== 'boolean') d.shadowBailUsed = false;
     /* v0.6 新增：旧存档没有「收好」字段，补齐后刷新就能继续用 */
     if(!Number.isFinite(d.secLeft)) d.secLeft = SEC_LIMIT;
     if(!Array.isArray(d.loot)) d.loot = [];

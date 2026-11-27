@@ -93,16 +93,19 @@ function optScore(o, G, style) {
     v += p * fxScore(o.ok && o.ok.fx, sw) + (1 - p) * fxScore(o.no && o.no.fx, sw);
     v += (o.ok && o.ok.text ? 0 : 0);
     /* 检定本身有波动；稳健策略偏好不掷骰的确定收益 */
-    if (style === 'careful') v -= 0.4;
+    if (style === 'careful' || style === 'deep') v -= 0.4;
   } else if (o.ok) v += fxScore(o.ok.fx, sw);
   if (o.shadowOpt) v += style === 'reckless' ? 6 : -9;
   if (o.final) v += 100;
   if (o.free) v += 0.1;
-  if (style === 'careful' && G.hp <= 4 && (o.fx && o.fx.hp < 0 || o.check)) v -= 5;
+  if ((style === 'careful' || style === 'deep') && G.hp <= 4 && (o.fx && o.fx.hp < 0 || o.check)) v -= 5;
   return v;
 }
 const NODE_PREF = {
   careful: { camp: 3, treasure: 2.4, story: 1.2, encounter: -2, final: 99, start: 0 },
+  /* deep 与 careful 选路、选选项完全相同，唯一差别是「输了就让它做完」。
+     这样两条曲线的差就是这张保命牌的值，不会被别的策略差异污染。 */
+  deep:    { camp: 3, treasure: 2.4, story: 1.2, encounter: -2, final: 99, start: 0 },
   reckless: { camp: -1, treasure: 1, story: -0.5, encounter: 3, final: 99, start: 0 },
   random: null
 };
@@ -126,7 +129,7 @@ function play(seed, heroId, tierId, style) {
   while (!G.over && steps++ < 400) {
     if (G.screen === 'map') {
       /* 稳健策略在阴影第一次 ≥4 时用一次「记起自己的名字」，看它值不值 */
-      if (style === 'careful' && !peak.steadied && G.shadow >= 4 && get('steadyCost()').ok) {
+      if ((style === 'careful' || style === 'deep') && !peak.steadied && G.shadow >= 4 && get('steadyCost()').ok) {
         F('doSteady'); peak.steadied = true; G = get('G'); continue;
       }
       const cur = G.map.index[G.at];
@@ -161,10 +164,15 @@ function play(seed, heroId, tierId, style) {
       const o = G.pending.opt;
       const p = prob(o.check.attr, effDC(o.check.dc), G, (G.pending && G.pending.checkBonus) || 0);
       const r = rnd() * 100;
-      F('settleCheck', r < 2 ? 'crit' : r < p * 100 ? 'clean' : r < p * 100 + 20 ? 'cost' : 'fail', '');
+      const tier = r < 2 ? 'crit' : r < p * 100 ? 'clean' : r < p * 100 + 20 ? 'cost' : 'fail';
+      /* deep：输了就让它做完。只在失败已经发生时才考虑，和玩家的真实决策一致。 */
+      if (tier === 'fail' && style === 'deep' && !G.shadowBailUsed && (G.shadow || 0) >= 3 && G.hp <= 3) {
+        peak.bails = (peak.bails || 0) + 1;
+        F('bailOut');
+      } else F('settleCheck', tier, '');
     } else if (G.screen === 'shadowend') {
       /* 阴影到顶的终局抉择：稳健的人愿意付代价翻盘，蛮干的人直接接受 */
-      if (style === 'careful' && !G.shadowResistUsed && G.hp > 3) F('resistShadow');
+      if ((style === 'careful' || style === 'deep') && !G.shadowResistUsed && G.hp > 3) F('resistShadow');
       else F('endRun', 'shadow');
     } else break;
     G = get('G');
@@ -175,7 +183,7 @@ function play(seed, heroId, tierId, style) {
   return {
     kind: o.kind, reached: o.reached, renown: o.renown, shadow: peak.shadow,
     events: peak.events, checks: peak.checks, forks: peak.forks, sameFork: peak.sameFork,
-    solo: peak.choices
+    bails: peak.bails || 0, solo: peak.choices
   };
 }
 
@@ -210,9 +218,9 @@ console.log('\n【1】地图给的选择空间（400 张图）');
 console.log('\n【2】同一批 400 个 seed × 3 种策略（同一出身/难度，不主动撤退）');
 {
   const hero = HEROES[0].id, tier = 1;
-  const styles = ['random', 'careful', 'reckless'];
+  const styles = ['random', 'careful', 'deep', 'reckless'];
   const agg = {};
-  for (const s of styles) agg[s] = { kinds: {}, renown: 0, reached: 0, shadow: 0, at4: 0, at6: 0, at7: 0, at8: 0, events: 0, checks: 0, forks: 0, sameFork: 0, n: 0 };
+  for (const s of styles) agg[s] = { kinds: {}, renown: 0, reached: 0, shadow: 0, at4: 0, at6: 0, at7: 0, at8: 0, events: 0, checks: 0, forks: 0, sameFork: 0, bails: 0, n: 0 };
   for (let i = 0; i < 400; i++) {
     for (const s of styles) {
       const r = play('DIAG-' + i, hero, tier, s);
@@ -220,7 +228,7 @@ console.log('\n【2】同一批 400 个 seed × 3 种策略（同一出身/难�
       a.n++;
       a.kinds[r.kind] = (a.kinds[r.kind] || 0) + 1;
       a.renown += r.renown; a.reached += r.reached; a.shadow += r.shadow;
-      a.events += r.events; a.checks += r.checks; a.forks += r.forks; a.sameFork += r.sameFork;
+      a.events += r.events; a.checks += r.checks; a.forks += r.forks; a.sameFork += r.sameFork; a.bails += (r.bails || 0);
       if (r.shadow >= 4) a.at4++;
       if (r.shadow >= 6) a.at6++;
       if (r.shadow >= 7) a.at7++;
@@ -240,7 +248,10 @@ console.log('\n【2】同一批 400 个 seed × 3 种策略（同一出身/难�
     console.log('  '.padEnd(11) + '阴影达 4/6/7/8 的局：' + [a.at4, a.at6, a.at7, a.at8].map(v => (v / n * 100).toFixed(0) + '%').join(' / ') +
       ' | 均事件 ' + (a.events / n).toFixed(1) + ' 均检定 ' + (a.checks / n).toFixed(1));
   }
-  const c = agg.careful, r = agg.random, k = agg.reckless;
+  const c = agg.careful, r = agg.random, k = agg.reckless, d = agg.deep;
+  console.log('\n  让它做完（deep 相对 careful）：通关 ' + ((d.kinds.win || 0) - (c.kinds.win || 0)) +
+    ' 局，堕影 ' + ((d.kinds.shadow || 0) - (c.kinds.shadow || 0)) +
+    ' 局，用掉 ' + d.bails + ' 次（' + (d.bails / 400).toFixed(2) + ' 次/局）');
   console.log('\n  稳健相对随机：声望 ' + ((c.renown - r.renown) / r.renown * 100).toFixed(1) + '%，通关 ' + ((c.kinds.win || 0) - (r.kinds.win || 0)) + ' 局');
   console.log('  蛮干相对稳健：堕影 ' + ((k.kinds.shadow || 0) - (c.kinds.shadow || 0)) + ' 局，均程差 ' + ((k.reached - c.reached) / 400).toFixed(2));
   must((c.kinds.win || 0) > (r.kinds.win || 0) * 1.5, '稳健策略的通关率没有显著高于乱点 —— 决策失去回报');

@@ -168,13 +168,15 @@ section('① 数据完整性');
     ['| 分支结果 | ' + branchCount + ' 段', '分支结果'],
     ['| 通用池地区版正文 | ' + regionVariants + ' 段', '地区版正文'],
     ['| 阴影改写 | ' + shadowKeys.length + ' 条整篇替换 + ' + tailKeys.length + ' 条注脚', '阴影改写'],
-    ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布'],
-    ['v0.18，能完整玩通。', '版本号']
+    ['夏尔 ' + byRegion.shire + ' / 通用 ' + byRegion.any + ' / 布理 ' + byRegion.bree + ' / 荒野 ' + byRegion.wild, '地区分布']
   ];
   for (const [needle, label] of pairs) {
     if (!readme.includes(needle)) fail('README 口径不符：' + label + '（应为 ' + needle + '）');
   }
-  ok('README 状态表 6 项与实测一致（含版本号）');
+  ok('README 状态表 5 项与实测一致');
+  /* 版本行不写死具体数字：升版只该改 README / 代码头 / 标题页三处，
+     不该连测试也一起改（以前这里是 'v0.18，能完整玩通'，每次升版都卡一次） */
+  if (!/^v\d+\.\d+，能完整玩通。$/m.test(readme)) fail('README「开发状态」的版本行格式不对（应形如「v0.19，能完整玩通。」）');
 
   /* 版本号三处必须一起走：README、代码头注释、标题页。只改文档不改代码，
      线上就会显示旧版本 —— v0.9 第一次提交就漏了这一处。 */
@@ -772,6 +774,51 @@ section('⑥ 300 局自动模拟');
   ok('回响埋点实际覆盖 ' + stats.echoTypes.size + ' 类：' + Array.from(stats.echoTypes).sort().join(' / '));
   if (stats.idleSeen < 40) fail('300 局里闲事只出现 ' + stats.idleSeen + ' 次，可能没进池');
   ok('300 局里闲事出现 ' + stats.idleSeen + ' 次，单局从未超过 2 件');
+}
+
+/* ---------- ②c. 深阴影保命牌「让它做完」 ---------- */
+section('②c 让它做完（深阴影保命牌）');
+{
+  /* 门槛写在 showRollActions 里：失败之后、每局一次、血 ≤3、阴影 ≥3 */
+  if (!/G\.shadowBailUsed/.test(code) || !/G\.hp <= 3/.test(code)) {
+    fail('showRollActions 缺少「让它做完」的门槛（每局一次 / 血 ≤3）');
+  }
+
+  const setupBail = (shadow, hp) => vm.runInContext([
+    'G.screen = "event";',
+    'G.shadow = ' + shadow + '; G.hp = ' + hp + '; G.shadowBailUsed = false; G.bailNote = "";',
+    'G.event = {id:"e_bail", title:"门", type:"encounter", text:"x",',
+    '  options:[{label:"推门", check:{attr:"cunning", dc:11}, ok:{fx:{}}, no:{fx:{}}}]};',
+    'G.pending = {opt: G.event.options[0], checkBonus:0};'
+  ].join('\n'), ctx);
+
+  vm.runInContext('META = defaultMeta()', ctx);
+  vm.runInContext('newGame("ranger", 1, "bail-check")', ctx);
+
+  setupBail(3, 2);
+  callC('bailOut');
+  let g = getG();
+  if (g.shadow !== 4) fail('「让它做完」应把阴影 +1，实际 ' + g.shadow);
+  if (g.shadowBailUsed !== true) fail('「让它做完」用了却没记下已用');
+  ok('让它做完：阴影 3 → 4，标记已用');
+
+  callC('bailOut');
+  g = getG();
+  if (g.shadow !== 4) fail('「让它做完」每局只能一次，第二次又加了阴影');
+  ok('让它做完：每局一次，重复调用不再生效');
+
+  setupBail(7, 2);
+  callC('bailOut');
+  g = getG();
+  if (g.shadow !== 8) fail('阴影 7 时用它应推到 8，实际 ' + g.shadow);
+  ok('让它做完：阴影 7 → 8（自己把最后一步用掉了）');
+
+  /* 回响里要留一条：那一次是它做完的 */
+  vm.runInContext('G.echoes = []; G.layer = 5', ctx);
+  vm.runInContext('pushEcho({t:"bail", once:true, title:"门", layer:5})', ctx);
+  const echo = callC('buildEcho', 'shadow', 6);
+  if (!/没有.抬手|它做完的/.test(echo)) fail('回响没有接住「让它做完」这件事：' + echo);
+  ok('回响：堕影结局会写到那一次你没有再抬手');
 }
 
 section('⑦ 渲染结构');
