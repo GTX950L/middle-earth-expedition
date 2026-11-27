@@ -1,0 +1,34 @@
+name: 回归
+
+# Pages 由 main 直接构建，所以 push 到 main 之前必须先把这两套跑绿。
+# 之前只有本地手动跑：一次改坏内容忘了跑，坏版本会直接上线。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 回归 + 平衡诊断
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 零依赖，不需要 npm install
+      - name: 回归（数据完整性 / 阴影 / 规则接线 / 存档 / 300 局模拟 / 内容）
+        run: node tests/sim.js
+
+      - name: 平衡诊断（分叉空间 / 策略回报 / 六档难度单调）
+        run: node tests/diag.js

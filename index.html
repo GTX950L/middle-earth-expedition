@@ -4,6 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>中土远征 · 文字跑团</title>
+<meta name="description" content="纯文字中土跑团，单文件 HTML，打开即玩。十五程路，掷骰、取舍，阴影会改写你看到的文字。">
+<meta name="theme-color" content="#f1e9d8">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="中土远征">
+<meta property="og:title" content="中土远征 · 文字跑团">
+<meta property="og:description" content="十五程路，从夏尔到风云顶以西的荒野。掷骰决定成败，失败不一定结束，成功也不一定免费。">
+<meta property="og:url" content="https://gtx950l.github.io/middle-earth-expedition/">
+<meta property="og:image" content="https://gtx950l.github.io/middle-earth-expedition/screenshots/01-title.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f1e9d8'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%2396682c' stroke-width='2.6'/%3E%3C/svg%3E">
 <style>
 :root{
   --paper:#f1e9d8; --panel:#faf5e9; --panel-2:#f6efe0; --panel-3:#fdfaf2;
@@ -31,6 +41,9 @@ body{
 }
 #app{max-width:880px;margin:0 auto;padding:26px 20px 72px}
 .hidden{display:none !important}
+/* 读屏专用：视觉上不占位，仍留在无障碍树里。整块 innerHTML 换页时靠它播报。 */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 h1,h2,h3{font-family:var(--serif);font-weight:500;letter-spacing:.02em}
 h1{font-size:28px;line-height:1.35}
 h2{font-size:19px;line-height:1.5}
@@ -332,6 +345,7 @@ h3{font-size:15px;line-height:1.5}
 </style>
 </head>
 <body>
+<div id="sr" class="sr-only" role="status" aria-live="polite"></div>
 <div id="app"></div>
 <script>
 "use strict";
@@ -348,6 +362,12 @@ function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.im
 function ri(rnd,n){ return Math.floor(rnd()*n); }
 const $ = id=>document.getElementById(id);
 const esc = s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* 读屏播报：页面整块重绘时，新建的 aria-live 区域不会被追踪，
+   所以固定用 body 上那个常驻的 #sr，只改它的文字。 */
+function announce(t){
+  const el = document.getElementById('sr');
+  if(el) el.textContent = t;
+}
 
 /* ---------- 1. 常量 ---------- */
 const ATTRS = { valor:'勇武', cunning:'机敏', lore:'学识', spirit:'心志' };
@@ -7512,7 +7532,7 @@ function renderMap(){
         ${avail.size ? '<p class="note" style="margin:6px 0 0">点击带金环的节点继续</p>' : ''}
       </div>
       <div class="mapscroll">
-        <svg viewBox="0 0 720 ${h}" role="img">
+        <svg viewBox="0 0 720 ${h}" role="group" aria-label="路线图，可前往的节点带金环">
           ${dividers}${edges}${nodes}
         </svg>
       </div>
@@ -7742,6 +7762,9 @@ function renderEvent(){
   document.querySelectorAll('.opt').forEach(b=>{
     b.onclick = ()=> chooseOption(ev.options[+b.dataset.i]);
   });
+  /* 换页后读屏器只会读到「一片空白」，这里补一句这一页是什么 */
+  announce('第 ' + (G.layer + 1) + ' 程 · ' + (ev.kicker || kickerFor(ev)) + ' · ' + ev.title +
+           '，' + ev.options.length + ' 个选项');
 }
 
 function chooseOption(o){
@@ -7943,6 +7966,7 @@ function renderCheck(){
         `${raw} + ${base} = ${calc}${total !== calc ? ' + 2 = ' + total : ''} vs DC ${dc}` +
         (traitNote ? ' · ' + traitNote : '') +
         (raw === 20 ? ' · 自然 20' : '') + (raw === 1 ? ' · 自然 1' : '');
+      announce('检定 · ' + tierLabel + '，' + $('rollDetail').textContent);
       showRollActions(tier, traitNote);
     }
   }, 45);

@@ -186,6 +186,34 @@ section('① 数据完整性');
     else ok('版本串：README / 代码头 / 标题页三处一致（v' + ver + '）');
   }
 
+  /* flag 防漂移：写进状态却没人读的 flag，名单必须锁死。
+     新增一个 flag 却没有任何事件读取它，这里直接报错 ——
+     否则「世界记得你」会慢慢变成「世界记了，但没人看」。 */
+  const writtenFlags = new Set(), readFlags = new Set();
+  for (const m of code.matchAll(/flag\s*:\s*\{([^{}]*)\}/g)) {
+    for (const k of m[1].matchAll(/([A-Za-z_$][\w$]*)\s*:/g)) writtenFlags.add(k[1]);
+  }
+  for (const m of code.matchAll(/(?:require|need)\s*:\s*\{([^{}]*)\}/g)) {
+    for (const k of m[1].matchAll(/(?:notFlag|flag)\s*:\s*['"]([\w$]+)['"]/g)) readFlags.add(k[1]);
+  }
+  for (const m of code.matchAll(/flags\s*(?:&&\s*flags\s*)?\.\s*([A-Za-z_$][\w$]*)/g)) readFlags.add(m[1]);
+  for (const m of code.matchAll(/flags\s*\[\s*['"]([\w$]+)['"]\s*\]/g)) readFlags.add(m[1]);
+  const writeOnly = [...writtenFlags].filter(f => !readFlags.has(f)).sort();
+  /* 这 64 个是记录位，留给后续版本接线；数量只许减不许增。 */
+  const FLAG_WRITE_ONLY = ['alert','ash_known','axle_crack','bones_cut','book_read','bridge_names',
+    'cairn_eight','cairn_moved','cairn_stone','chalk','child_told','dice_loaded','dog','dyke_trace',
+    'faced','faced_it','fire_met','forge_back','gate_hand','grave_west','handprints','heard',
+    'hedge_inside','hood_rider','hoof_load','hoof_trace','horse_found','ledger_paid','ledger_sum',
+    'letter','letter_ask','letter_name','letter_open','listened','map','map_bree','map_fixed','mark',
+    'marked','mill_met','mine_sealed','named_it','noise','post_built','ring_thirteen','rumor',
+    'scarecrow','seen','sign','song_answer','stone_blank','stone_read','stone_rubbing','stranger_lie',
+    'strider','thread','track_fresh','trail','tree_touch','wall_count','warned','watched','well_hole','witness'];
+  const stray = writeOnly.filter(f => !FLAG_WRITE_ONLY.includes(f));
+  if (stray.length) fail('新增了没人读取的 flag：' + stray.join(', ') +
+    '（接上读取它的事件，或加进 FLAG_WRITE_ONLY 并写清为什么先留着）');
+  else ok('flag：写入 ' + writtenFlags.size + ' 个 / 被读取 ' + readFlags.size +
+          ' 个 / 预留记录位 ' + writeOnly.length + ' 个（名单已锁，数量只许减）');
+
   if (warns.length) for (const w of warns) fail('运行时告警：' + w);
   else ok('运行时告警 0 条（TEXTS 对齐通过）');
 }
