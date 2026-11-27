@@ -821,6 +821,44 @@ section('②c 让它做完（深阴影保命牌）');
   ok('回响：堕影结局会写到那一次你没有再抬手');
 }
 
+/* ---------- ②d 回调优先：做过的事，世界要提得起来 ========== */
+section('②d 回调优先（世界记得你）');
+{
+  vm.runInContext('META = defaultMeta()', ctx);
+  vm.runInContext('newGame("ranger", 1, "cb-none")', ctx);
+  /* 闲事与独白有「必给一件」的前置，会把抽取截走；这里只测回调规则本身 */
+  vm.runInContext('G.groupCount = { idle: 2, solitude: 2 }', ctx);
+  let hit = 0;
+  for (let i = 0; i < 120; i++) {
+    const e = callC('pickEvent', { region: 'shire', type: 'story', id: 'n' + i, layer: 2 });
+    if (e && e.require && e.require.flag) hit++;
+  }
+  if (hit) fail('一个 flag 都没写，也抽到了 ' + hit + ' 次后续事件');
+  ok('没做过那件事时，后续事件一次都不会来');
+
+  /* 置上一个 flag，逐次重置计数看插队率；不重置则验证每局上限 */
+  vm.runInContext('G.flags = {child_told: true}', ctx);
+  let picked = 0;
+  for (let i = 0; i < 200; i++) {
+    vm.runInContext('G.cbCount = 0; G.seen = {}', ctx);
+    const e = callC('pickEvent', { region: 'shire', type: 'story', id: 'm' + i, layer: 2 });
+    if (e && e.id === 'shire_child_after') picked++;
+  }
+  if (picked < 60) fail('置上 flag 后插队率只有 ' + picked + '/200，内容还是看不见');
+  else if (picked > 160) fail('插队率 ' + picked + '/200，后续事件几乎独占池子');
+  else ok('flag 置上后插队率 ' + picked + '/200（约六成，留了余量给普通事件）');
+
+  /* 上限只管「插队」这条路：后续事件本身还在普通池子里，
+     没被插队时照样可能正常抽到，那不算超限。 */
+  vm.runInContext('G.cbCount = 0; G.seen = {}', ctx);
+  for (let i = 0; i < 200; i++) {
+    callC('pickEvent', { region: 'shire', type: 'story', id: 'k' + i, layer: 2 });
+  }
+  const used = vm.runInContext('G.cbCount || 0', ctx);
+  if (used > 2) fail('一局里插队了 ' + used + ' 次（上限应为 2）');
+  else ok('每局最多两次插队，不会变成回忆巡演（实测 ' + used + ' 次）');
+}
+
 section('⑦ 渲染结构');
 {
   vm.runInContext('META = defaultMeta()', ctx);
@@ -921,7 +959,9 @@ section('⑧ 内容扩容与回响埋点');
     '多解障碍':  e => /^gate_(chain|wall)/.test(e.id),
     '凭证事件':  e => /^token_/.test(e.id),
     '路上的闲事': e => e.group === 'idle',
-    '出身专属': e => !!(e.require && e.require.origin)
+    '出身专属': e => !!(e.require && e.require.origin),
+    /* 接 flag 的后续事件写的是「那一次你做过什么」，不绑地点，刻意保持中性 */
+    '接 flag 的后续': e => !!(e.require && e.require.flag)
   };
   let neutralCount = 0;
   for (const [name, pred] of Object.entries(groups)) {
@@ -933,7 +973,7 @@ section('⑧ 内容扩容与回响埋点');
   const anyCount = EVENTS.filter(e => e.region === 'any').length;
   if (keys.length + neutralCount !== anyCount) fail('通用池分类不闭合：' + keys.length + ' + ' + neutralCount + ' ≠ ' + anyCount);
   ok('地区版 ' + keys.length + ' 条 × 3 = ' + keys.length * 3 + ' 段；其余 ' + neutralCount +
-     ' 条按设计不写地区版（独白 / 阴影 / 多解障碍 / 凭证 / 闲事 / 出身专属），分类闭合');
+     ' 条按设计不写地区版（独白 / 阴影 / 多解障碍 / 凭证 / 闲事 / 出身专属 / 接 flag 的后续），分类闭合');
 
   /* 新补的 3 条地区版：三地正文确实不同，且原事件不被改写 */
   const probe = EVENTS.find(e => e.id === 'any_cleanse_water');
@@ -1680,7 +1720,9 @@ section('⑯ v0.14：世界的记忆 / 同行者 / 行装 / 事迹');
   const writers = new Set();
   const scanFlags = o => {
     if (!o || typeof o !== "object") return;
-    if (o.flag) for (const k of Object.keys(o.flag)) writers.add(k);
+    /* 只认对象形态的 flag:{...}。require:{flag:'x'} 的 flag 是字符串，
+       Object.keys 会把它拆成 '0'..'9' 一串下标，把统计灌成垃圾。 */
+    if (o.flag && typeof o.flag === 'object') for (const k of Object.keys(o.flag)) writers.add(k);
     for (const k in o) if (o[k] && typeof o[k] === "object") scanFlags(o[k]);
   };
   EVENTS.forEach(scanFlags);

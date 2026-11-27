@@ -351,7 +351,7 @@ h3{font-size:15px;line-height:1.5}
 "use strict";
 
 /* ============================================================
-   中土远征 v0.19
+   中土远征 v0.20
    三区连续远征 · 难度阶梯 · 装备军械库 · 天赋树 · 事件链
    路线抉择 · 阴影对抗 · 到顶终局
    ============================================================ */
@@ -2984,6 +2984,179 @@ const EVENTS = [
         ok:{ text:'你走到天快黑。后面的脚步声一直没断，也没近。' } }
     ] },
 
+  /* ===== v0.20：第二批接 flag 的后续事件 =====
+     每一条都只在「你真的做过那件事」之后才进池子。
+     这不是加量：同一个玩家第二局碰见什么，取决于第一局他碰过什么。
+     不给这几条新写 flag —— 新增一个只写不读的 flag，sim.js 会直接报错。 */
+
+  { id:'shire_child_after', region:'shire', type:'story', weight:13, require:{flag:'child_told'},
+    title:'同一个路口',
+    text:'同一个路口。草垛还在，孩子不在。',
+    options:[
+      { label:'告诉她你那天见过那个孩子', check:{attr:'spirit',dc:11},
+        ok:{ text:'', fx:{resolve:1,renown:2} },
+        no:{ text:'', fx:{shadow:1} } },
+      { label:'看她手里那只小鞋', check:{attr:'lore',dc:11},
+        ok:{ text:'', fx:{renown:2,supply:1} },
+        no:{ text:'', fx:{} } },
+      { label:'说你没走过这条路', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'shire_well_after', region:'shire', type:'story', weight:13, require:{flag:'well_hole'},
+    title:'井口盖上了',
+    text:'井口盖上了。一块新木板，四角钉着，钉子还亮。',
+    options:[
+      { label:'俯身从锯缝里听', check:{attr:'spirit',dc:12},
+        ok:{ text:'', fx:{resolve:-1,renown:2} },
+        no:{ text:'', fx:{shadow:1} } },
+      { label:'看钉子是从哪边钉的', check:{attr:'cunning',dc:11},
+        ok:{ text:'', fx:{renown:3,resolve:-1} },
+        no:{ text:'', fx:{} } },
+      { label:'不去看，赶路', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'shire_grave_after', region:'shire', type:'story', weight:12, require:{flag:'grave_west'},
+    title:'又多了一堆',
+    text:'坡上那几块没有字的石头还在。旁边多了一堆新土。',
+    options:[
+      { label:'数一数原来的还剩几块', check:{attr:'cunning',dc:12},
+        ok:{ text:'', fx:{renown:2,shadow:1} },
+        no:{ text:'', fx:{shadow:1} } },
+      { label:'用手扒开一点新土', check:{attr:'valor',dc:12},
+        ok:{ text:'', fx:{supply:1,renown:1} },
+        no:{ text:'', fx:{hp:-1} } },
+      { label:'站着看一会儿，走', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'bree_ledger_sum_after', region:'bree', type:'story', weight:12, require:{flag:'ledger_sum'},
+    title:'换了一本账',
+    text:'客栈换了账本。旧的皮面那本不在了，桌上是新的，皮子还没上油。',
+    options:[
+      { label:'翻新账本的第一页', check:{attr:'lore',dc:11},
+        ok:{ text:'', fx:{renown:2,supply:1} },
+        no:{ text:'', fx:{} } },
+      { label:'把那三晚的账结清', check:{attr:'spirit',dc:11},
+        ok:{ text:'', fx:{renown:3} },
+        no:{ text:'', fx:{resolve:-1} } },
+      { label:'算了，坐一会儿', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'bree_dice_after', region:'bree', type:'story', weight:13, require:{flag:'dice_loaded'},
+    title:'包里多了两颗',
+    text:'你解包找干粮，摸到两颗骰子。不是你的。',
+    options:[
+      { label:'掷一次看看', check:{attr:'cunning',dc:11},
+        ok:{ text:'', fx:{renown:2,shadow:1} },
+        no:{ text:'', fx:{shadow:1} } },
+      { label:'看六点那一面的刻痕', check:{attr:'lore',dc:12},
+        ok:{ text:'', fx:{renown:2} },
+        no:{ text:'', fx:{} } },
+      { label:'扔进路边的沟里', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'bree_horse_after', region:'bree', type:'story', weight:13, require:{flag:'horse_found'},
+    title:'它自己回来了',
+    text:'那匹马站在路边，就是你上次拉住缰绳的那匹。鞍还在，鞍袋鼓着。',
+    options:[
+      { label:'先看鞍袋里是什么', check:{attr:'cunning',dc:12},
+        ok:{ text:'', fx:{supply:2,renown:1} },
+        no:{ text:'', fx:{} } },
+      { label:'看它四只蹄铁', check:{attr:'lore',dc:11},
+        ok:{ text:'', fx:{renown:2} },
+        no:{ text:'', fx:{} } },
+      { label:'不碰它，继续走', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'wild_mine_after', region:'wild', type:'story', weight:13, require:{flag:'mine_sealed'},
+    title:'横梁挪开了',
+    text:'矿道口的横梁挪开了一半。不是拆的。',
+    options:[
+      { label:'侧身进去，走二十步', check:{attr:'valor',dc:13},
+        ok:{ text:'', fx:{renown:3,shadow:1} },
+        no:{ text:'', fx:{hp:-1,shadow:1} } },
+      { label:'看让开那一侧的岩壁', check:{attr:'cunning',dc:12},
+        ok:{ text:'', fx:{renown:2,resolve:-1} },
+        no:{ text:'', fx:{} } },
+      { label:'把横梁推回去，走', fx:{supply:-1},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'wild_ring_after', region:'wild', type:'story', weight:13, require:{flag:'ring_thirteen'},
+    title:'第十四块',
+    text:'石环还在。上次你数过，十三块。这次是十四块。',
+    options:[
+      { label:'把多出来那块搬到圈外', check:{attr:'valor',dc:12},
+        ok:{ text:'', fx:{renown:2,hp:-1} },
+        no:{ text:'', fx:{hp:-2} } },
+      { label:'看石头上刻的数', check:{attr:'lore',dc:12},
+        ok:{ text:'', fx:{renown:2,shadow:1} },
+        no:{ text:'', fx:{} } },
+      { label:'不进石环，绕开走', fx:{supply:-1},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'wild_hand_after', region:'wild', type:'story', weight:13, require:{flag:'handprints'},
+    title:'多了一双',
+    text:'石壁上原来五个手印，越往上越大。最下面多了一双。',
+    options:[
+      { label:'按着手印的姿势贴上去', check:{attr:'spirit',dc:13},
+        ok:{ text:'', fx:{resolve:-1,shadow:2,renown:3} },
+        no:{ text:'', fx:{hp:-1,shadow:1} } },
+      { label:'数一共几个', check:{attr:'cunning',dc:11},
+        ok:{ text:'', fx:{renown:2} },
+        no:{ text:'', fx:{} } },
+      { label:'退开，不再看', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'wild_bones_after', region:'wild', type:'story', weight:12, require:{flag:'bones_cut'},
+    title:'同样的刀口',
+    text:'路边倒着一根断木，断口很新。切口和上次那堆骨头上的刀痕一样。',
+    options:[
+      { label:'顺着断木找另一半', check:{attr:'cunning',dc:12},
+        ok:{ text:'', fx:{renown:2,supply:1} },
+        no:{ text:'', fx:{supply:-1} } },
+      { label:'看刀口边缘的毛刺', check:{attr:'lore',dc:11},
+        ok:{ text:'', fx:{renown:2,shadow:1} },
+        no:{ text:'', fx:{} } },
+      { label:'把断木踢到路边', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'wild_cairn_third', region:'wild', type:'story', weight:12, require:{flag:'cairn_moved'},
+    title:'它又回了另一侧',
+    text:'第四个石堆。你上次把它搬过路，白的那块朝东。现在它又在另一侧了。',
+    options:[
+      { label:'这次不动它，坐着等', check:{attr:'spirit',dc:12},
+        ok:{ text:'', fx:{resolve:1,renown:2,shadow:1} },
+        no:{ text:'', fx:{hp:-1,shadow:1} } },
+      { label:'看两块石头之间有没有东西', check:{attr:'cunning',dc:12},
+        ok:{ text:'', fx:{renown:3,supply:1} },
+        no:{ text:'', fx:{} } },
+      { label:'走开，不回头', fx:{},
+        ok:{ text:'' } }
+    ] },
+
+  { id:'any_stranger_after', region:'any', type:'encounter', weight:12, require:{flag:'stranger_lie'},
+    title:'又是他',
+    text:'前面路上有个人在等。看见你，他先笑，笑到一半停住。',
+    options:[
+      { label:'装作不认识，走过去', check:{attr:'cunning',dc:12},
+        ok:{ text:'', fx:{renown:2,shadow:1} },
+        no:{ text:'', fx:{shadow:1} } },
+      { label:'再问一次他从哪来', check:{attr:'spirit',dc:12},
+        ok:{ text:'', fx:{resolve:1,renown:2} },
+        no:{ text:'', fx:{resolve:-1} } },
+      { label:'绕开他，走另一条', fx:{supply:-1},
+        ok:{ text:'' } }
+    ] },
+
   /* ===== v0.15：地区事件扩容（每区 4 条） ===== */
 
   { id:'shire_dyke', region:'shire', type:'story', weight:10, title:'河堤上的缺口',
@@ -3985,6 +4158,126 @@ TEXTS.wild_follower_after = {
   ]
 };
 
+
+TEXTS.shire_child_after = {
+  title: '同一个路口',
+  text: '还是那个路口。草垛还在，孩子不在。\n\n站着一个女人，三十来岁，手里提着一只小鞋。她看见你，先看你的身后，再看你的脸。\n\n「你见过他。」她说。不是问句。',
+  opts: [
+    { ok: '她说那天她一直在这条路上，从早到晚，没有走开过。\n\n「他不可能在这儿。」她说，「他那天在家，发烧，躺着。」\n\n说完她把那只鞋攥紧了一点。', no: '她听完，摇了摇头，说这几天路上没有人。\n\n然后她低头看鞋，看了很久，像在确认那是不是自己要找的东西。' },
+    { ok: '鞋是右脚的，鞋底磨得很薄，前掌有一块补丁。针脚很密，是常年做针线的人缝的。\n\n鞋里是干的。\n\n这几天一直在下雨。', no: '鞋很旧，看不出什么。你想再看一眼，她把手收回去了。' },
+    { ok: '你说你没有走过这条路。\n\n她点点头，让开半步。你走过去，走出很远，还听得见她在后面说话，像是在跟谁解释。' }
+  ]
+};
+
+TEXTS.shire_well_after = {
+  title: '井口盖上了',
+  text: '井口盖上了。一块新木板，四角钉着，钉子还亮。\n\n板子中间锯了一道缝，缝里往外吹风。\n\n上次你下去的时候，井是敞着的。',
+  opts: [
+    { ok: '风声很稳，稳得不像风。\n\n你听了一会儿，风停了一下。停了大概三次呼吸那么久，然后又起。\n\n像是在等你先开口。', no: '只有风。\n\n你起身的时候，缝里飘出一根草，绿的，还活着。井底照不到太阳。' },
+    { ok: '四颗钉，钉帽都朝里。\n\n从外面钉的话，钉帽应该朝外。\n\n这口井是从里面封上的。', no: '钉子钉得很正，一颗不多一颗不少。你看不出别的。' },
+    { ok: '你走开了。\n\n板子上那道缝一直没有停过风。' }
+  ]
+};
+
+TEXTS.shire_grave_after = {
+  title: '又多了一堆',
+  text: '坡上那几块石头还在，都没有字。最靠边那块前面还放着花——上次就蔫了，现在成了干的一小把。\n\n旁边多了一堆新土。土上压着石头，石头是白的，断口很新。',
+  opts: [
+    { ok: '你数了两遍。原来的少了一块。\n\n新这堆最上面那块，大小和缺的那块一样。', no: '你数着数着乱了。\n\n风把坡上的草压向一边，压出一条道来，又慢慢直起来。' },
+    { ok: '土是新翻的，翻得很浅。你用手扒开一点，碰到了布。\n\n布下面是什么，你没有再往下。', no: '土压得很实，指甲抠不进去。\n\n你抠了一会儿，指尖出了血。' },
+    { ok: '你站着看了一会儿。\n\n太阳偏西，石头影子都朝东。\n\n只有新那堆没有影子。' }
+  ]
+};
+
+TEXTS.bree_ledger_sum_after = {
+  title: '换了一本账',
+  text: '客栈换了账本。旧的皮面那本不在了，桌上是新的，皮子还没上油，边角挺括。\n\n掌柜的还是那个。见你进来，他把账本往柜台里推了推。',
+  opts: [
+    { ok: '新账本第一页就是你的名字。\n\n后面写的不是「预付」，是「已付」，再后面没有数目。\n\n那一页的墨还没干透。', no: '他把账本合上了，说新本子没什么好看的。\n\n合的时候手压在封面上，压了很久。' },
+    { ok: '你要结那三晚的账。他算了很久，报出来的数比你自己算的少。\n\n少的那部分，正好是你上次多付的。', no: '他说那三晚的账早就清了。\n\n你问谁清的，他说记不清了。' },
+    { ok: '你说不用了，就在堂屋坐一会儿。\n\n他给你倒了水。杯子是干净的，杯底留着一小圈没擦干的水痕。' }
+  ]
+};
+
+TEXTS.bree_dice_after = {
+  title: '包里多了两颗',
+  text: '你解包找干粮，摸到两颗骰子。\n\n骨头的，磨得发黄，和你那天在巷子里看见的一样。\n\n你不记得什么时候放进去的。',
+  opts: [
+    { ok: '两颗都是六。\n\n再掷一次，还是六。第三次你没掷，把它们攥在手里——掌心能觉出里面有东西在慢慢挪，很轻。', no: '一颗是三，一颗是六。\n\n你捡起来再看，三的那颗变成了六。' },
+    { ok: '六点那一面刻得比别的深，六个点里有五个是后补的，补的坑里填的是另一种骨。\n\n补这个的人手很稳，稳得像做过很多次。', no: '骰子磨得太旧，点数都圆了。' },
+    { ok: '你扔进路边的沟里。\n\n没有声音。\n\n走出半里，你摸了一下包，它们还在。' }
+  ]
+};
+
+TEXTS.bree_horse_after = {
+  title: '它自己回来了',
+  text: '那匹马站在路边，就是你上次拉住缰绳的那匹。\n\n鞍还在，鞍袋鼓着。它看见你，没有动，只把头低了一点。\n\n左前蹄还在刨地。',
+  opts: [
+    { ok: '袋里是一叠布，包着半块干饼和一把小刀。\n\n布是深红的，边角绣着字，绣到一半断了线——断的地方正好是一个名字的中间。', no: '你还没碰到鞍袋，它往后退了一步。\n\n退的时候袋里响了一下，是金属的声音。' },
+    { ok: '蹄铁是新的，四只都是。左边前蹄那只钉歪了一点。\n\n它跑过很远的路，蹄铁比你的鞋还新。', no: '蹄子里塞满了泥，看不出来。' },
+    { ok: '你走开。\n\n它跟了几步，停住。\n\n再回头，路上已经没有了。' }
+  ]
+};
+
+TEXTS.wild_mine_after = {
+  title: '横梁挪开了',
+  text: '矿道口的横梁挪开了一半。\n\n不是拆的。钉子在，木头也在，只是整根往旁边让出了一个人的宽度。\n\n风还是从里面出来，比上次大。',
+  opts: [
+    { ok: '二十步之后，脚底的碎石变成了木板。\n\n木板铺过，铺得很平。你蹲下去摸，木板是温的。', no: '进去十步，头顶落下东西，落在脚边。是一块木头，断口很新。\n\n你退了出来。' },
+    { ok: '岩壁上有一排浅坑，间隔一样，深浅一样，一直排到黑里。\n\n不是镐挖的。是手抠的。', no: '岩壁太粗，看不出什么。' },
+    { ok: '你使了很大力气，横梁动了半寸，又停住。\n\n松手的时候，它自己往回滑了一点。' }
+  ]
+};
+
+TEXTS.wild_ring_after = {
+  title: '第十四块',
+  text: '石环还在。上次你数过，十三块。\n\n这次是十四块。多出来的那块立在缺口上，正对着来路。\n\n这一带论七。',
+  opts: [
+    { ok: '石头不重，一个人搬得动。你把它挪到圈外，摆稳。\n\n回头看，缺口还在，那块又立回去了。', no: '比看上去重。你抱起来，它从手里滑下去，砸在脚背上。\n\n它没有滚，就停在原地，立着。' },
+    { ok: '每块石头上刻着一个数，从一到十三。\n\n第十四块上刻的是十四，刻痕是新的，石粉还白。', no: '石头背面朝上，翻不过来。' },
+    { ok: '你从外侧绕过去。\n\n走到一半，听见石头碰石头，一声，很轻。\n\n你没有回头。' }
+  ]
+};
+
+TEXTS.wild_hand_after = {
+  title: '多了一双',
+  text: '石壁上原来五个手印，越往上越大，最后一个够到了顶。\n\n最下面多了一双。\n\n你把手按上去，一样大。',
+  opts: [
+    { ok: '石壁是温的。\n\n掌心下面有什么动了一下，很轻，像隔着一层布有人在里面推。\n\n你松开手。手印还是干的。', no: '石壁冰得厉害。手刚贴上去就弹开了，掌心一片白，很久才回血。' },
+    { ok: '七个。上次是五个。\n\n新这两个在最低处，比最下面那个还低，低到要趴下才按得到。', no: '苔藓长上来了，只看得清三个。' },
+    { ok: '你贴着石壁走过去。\n\n走出很远，手心还是温的。' }
+  ]
+};
+
+TEXTS.wild_bones_after = {
+  title: '同样的刀口',
+  text: '路边倒着一根断木，断口很新。\n\n你蹲下去看。切口的角度、深浅，和上次那堆骨头上的刀痕一样——斜着下来，一刀，不补第二刀。',
+  opts: [
+    { ok: '另一半在三步外的草里，断口对得上。\n\n草被压过，压出一个人坐着的形状。坐了很久——草又长回来一半。', no: '草太高，找了一圈没找到。' },
+    { ok: '毛刺都朝一边倒。刀是从上往下、从外往里砍的。\n\n砍的人比你高。高不少。', no: '木纹盖住了刀口，看不清。' },
+    { ok: '你踢了一脚。断木滚到路边，停下时断口朝上。\n\n走了几步，你想起它刚才是断口朝下的。' }
+  ]
+};
+
+TEXTS.wild_cairn_third = {
+  title: '它又回了另一侧',
+  text: '第四个石堆。\n\n你上次把它搬过路，八块，白的那块朝东，和前三个摆在同一侧。\n\n现在它又在另一侧了。白的那块朝西。',
+  opts: [
+    { ok: '你在旁边坐下，背对着它。\n\n很久，什么也没发生。你起身要走，回头看了一眼——白的那块躺平了。', no: '你坐了很久。风停了，草不动，石堆也没动。\n\n站起来的时候腿麻了，扶了一下石堆，整堆塌了。' },
+    { ok: '两块石头之间塞着一小卷布。展开是一张图，画着四个石堆，第四个旁边打了个叉。\n\n叉是新画的。', no: '缝很窄，只够伸进两根手指。里面是空的。' },
+    { ok: '你走开。\n\n这次没有回头。' }
+  ]
+};
+
+TEXTS.any_stranger_after = {
+  title: '又是他',
+  text: '前面路上有个人在等。看见你，他先笑，笑到一半停住。\n\n就是上次那个。上次他说他从南边来，说得很顺，顺得不像真的。\n\n他包上那只铁杯子不在了。',
+  opts: [
+    { ok: '你从他身边过去，没有看他。\n\n走出十几步，他在后面开口了：「你上次问我从哪来。」\n\n他没有跟上来。', no: '你走过去的时候，他侧身让路。\n\n他的鞋底是干的。这一路都是泥。' },
+    { ok: '他说了另一个地方。还是南边，但不是上次那个。\n\n「你记得。」他说。\n\n这不是问句。', no: '他说他一直在这儿，没动过，也没见过你。\n\n说这话的时候，他一只手一直按在腰上。' },
+    { ok: '你绕开他，走另一条。\n\n绕出很远，回头——他还站在原处，还在笑。' }
+  ]
+};
 
 TEXTS.shire_tracks = {
   title: '篱笆外的脚印',
@@ -6588,6 +6881,31 @@ function pickEvent(node){
     return e.type === cat;
   };
   let pool = EVENTS.filter(match);
+
+  /* 接 flag 的后续事件优先。
+     它们只写了几十条，却要和几百条普通事件抢那几个落脚点：实测把 22 个 flag
+     全置上跑 200 局，一半的后续事件仍然一次没出现。等于「世界记得你」这四个字
+     只写在 README 里。
+     规则：条件满足的后续事件，六成机会直接插队；每局最多两次，
+     不至于把这一趟变成一场回忆巡演。 */
+  if((G.cbCount || 0) < 2){
+    const cbs = EVENTS.filter(e=>{
+      if(!e.require || !e.require.flag) return false;
+      if(G.seen[e.id]) return false;
+      if((e.weight || 0) <= 0) return false;
+      if(e.region !== 'any' && e.region !== region) return false;
+      if(e.type !== (cat === 'treasure' ? 'story' : cat)) return false;
+      return !!G.flags[e.require.flag];
+    });
+    if(cbs.length){
+      const crnd = mulberry32(hashStr(G.seed + '|' + node.id + '|cb'));
+      if(crnd() < 0.6){
+        G.cbCount = (G.cbCount || 0) + 1;
+        return cbs[Math.floor(crnd() * cbs.length)];
+      }
+    }
+  }
+
   /* 秘藏节点：先只在秘藏池里抽，抽空了再退到叙事池 */
   if(cat==='treasure' && !pool.length){
     pool = EVENTS.filter(e=>(e.region==='any'||e.region===region) && (e.weight||0)>0 && e.type==='story' && !G.seen[e.id]);
@@ -6936,7 +7254,7 @@ function renderTitle(){
   const unlocked = META.origins || [];
   app.innerHTML = `
   <div class="title-screen">
-    <div class="eyebrow">文字跑团 · v0.19</div>
+    <div class="eyebrow">文字跑团 · v0.20</div>
     <h1>中土远征</h1>
     <p class="lede">从夏尔出发，经布理，穿过古大道，到风云顶以西的荒野。<br>十五程路。你要在走到哪一步的时候，决定回头。</p>
   </div>
